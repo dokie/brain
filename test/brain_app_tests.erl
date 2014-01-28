@@ -11,17 +11,18 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-brain_app_setup() -> ok.
+brain_app_setup() ->
+  ok = application:start(brain).
 
-brain_app_cleanup(Pid) -> ok.
+brain_app_cleanup(_) ->
+  ok = application:stop(brain).
 
 brain_app_fixture_test_() ->
   {foreach,
     fun brain_app_setup/0,
     fun brain_app_cleanup/1,
-    [{"Simple Test",
-      fun simple_test/0}]
+    [{"Do nothing",
+     fun do_nothing/0}]
   }.
 
-simple_test() ->
-  ?assert(true).
+do_nothing() -> ok.

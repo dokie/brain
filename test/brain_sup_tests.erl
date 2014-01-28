@@ -11,7 +11,9 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-brain_sup_setup() -> ok.
+brain_sup_setup() ->
+  {ok, Pid} = brain_sup:start_link(),
+  Pid.
 
 brain_sup_cleanup(Pid) -> ok.
 
@@ -19,9 +21,8 @@ brain_sup_fixture_test_() ->
   {foreach,
     fun brain_sup_setup/0,
     fun brain_sup_cleanup/1,
-    [{"Simple Test",
-      fun simple_test/0}]
+    [{"Do nothing",
+      fun do_nothing/0}]
   }.
 
-simple_test() ->
-  ?assert(true).
+do_nothing() -> ok.

@@ -11,17 +11,24 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-tuple_space_setup() -> ok.
+-define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
+
+tuple_space_setup() ->
+  {ok, Pid} = tuple_space:start_link(),
+  Pid.
 
 tuple_space_cleanup(Pid) -> ok.
 
-tuple_space_fixture_test_() ->
-  {foreach,
-    fun tuple_space_setup/0,
-    fun tuple_space_cleanup/1,
-    [{"Simple Test",
-      fun simple_test/0}]
-  }.
+tuple_space_out_test_() ->
+  {"",
+   ?setup(fun simple_out/1)}.
 
-simple_test() ->
-  ?assert(true).
+simple_out(Pid) ->
+  Tuple = {"hello", 1},
+  Reply = space_call(Pid, {out, Tuple}),
+
+  [?_assert(erlang:is_process_alive(Pid)),
+   ?_assertEqual(ok, Reply)].
+
+space_call(ServerRef, Request) ->
+  gen_server:call(ServerRef, Request).
