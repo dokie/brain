@@ -13,6 +13,7 @@
 
 %% API
 -export([start_link/0]).
+-export([stop/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -80,6 +81,7 @@ init([]) ->
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
+
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -144,3 +146,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+stop(Pid) ->
+  gen_server:call(Pid, terminate).

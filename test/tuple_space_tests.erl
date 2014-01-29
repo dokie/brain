@@ -17,7 +17,8 @@ tuple_space_setup() ->
   {ok, Pid} = tuple_space:start_link(),
   Pid.
 
-tuple_space_cleanup(Pid) -> ok.
+tuple_space_cleanup(Pid) ->
+  tuple_space:stop(Pid).
 
 tuple_space_out_test_() ->
   {"",
