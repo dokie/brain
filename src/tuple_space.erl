@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1]).
+-export([stop/0, out/1, in/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -31,11 +31,39 @@
 %%% API
 %%%===================================================================
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Stops the server
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(stop() -> atom()).
+
 stop() ->
   gen_server:call(?SERVER, stop).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Places a Tuple into the Tuplespace
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(out(Tuple :: tuple()) -> {atom(), term()}).
+
 out(Tuple) ->
   gen_server:call(?SERVER, {out, Tuple}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Gets a Tuple from the Tuplespace that matches a Template
+%% Blocking Call
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(in(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+in(Template) ->
+  gen_server:call(?SERVER, {in, Template}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -87,6 +115,10 @@ init([]) ->
 handle_call({out, Tuple}, _From, _State) ->
   {Reply, NewState} = do_out(Tuple),
   {reply, Reply, NewState};
+
+handle_call({in, Template}, _From, _State) ->
+  {Reply, Match} = do_in(Template),
+  {reply, Reply, Match};
 
 handle_call(stop, _From, _State) ->
   {stop, normal,ok, _State}.
@@ -169,3 +201,22 @@ code_change(_OldVsn, State, _Extra) ->
 
 do_out(_Tuple) ->
   {ok, _Tuple}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Read a Tuple from the Tuplespace based upon a template
+%% This is a blocking call so we can pass a timeout value additionally.
+%%
+%% @spec do_in(Template) -> {ok, Tuple} | {noreply, Template, Timeout}
+%% @end
+%%--------------------------------------------------------------------
+-spec do_in(Template :: term()) -> {ok, Tuple :: term()}.
+
+do_in(Template) ->
+  {ok, Template}.
+
+-spec do_in(Template :: term(), Info :: timeout()) -> {noreply, Template :: term(), Timeout :: timeout()}.
+
+do_in(Template, _Info) ->
+  {ok, Template}.

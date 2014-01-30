@@ -11,14 +11,15 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(SERVER, tuple_space).
 -define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
 
 tuple_space_setup() ->
-  {ok, Pid} = tuple_space:start_link(),
+  {ok, Pid} = ?SERVER:start_link(),
   Pid.
 
 tuple_space_cleanup(_Pid) ->
-  tuple_space:stop().
+  ?SERVER:stop().
 
 tuple_space_out_test_() ->
   [{"Test of out with simple Tuple",
@@ -28,7 +29,7 @@ tuple_space_out_test_() ->
 
 simple_out(Pid) ->
   Tuple = {"hello", 1},
-  Reply = tuple_space:out(Tuple),
+  Reply = ?SERVER:out(Tuple),
 
   [?_assert(erlang:is_process_alive(Pid)),
    ?_assertEqual(ok, Reply)].
@@ -38,7 +39,17 @@ representative_out(Pid) ->
   Tenant = uuid:to_string(uuid:uuid1()),
   JobId = uuid:to_string(uuid:uuid1()),
   Tuple = {Id, "scalar", "P3", [Tenant, JobId]},
-  Reply = tuple_space:out(Tuple),
+  Reply = ?SERVER:out(Tuple),
 
   [?_assert(erlang:is_process_alive(Pid)),
     ?_assertEqual(ok, Reply)].
+
+tuple_space_in_test_() ->
+  [{"Test of in with simple Tuple",
+   ?setup(fun simple_in/1)}].
+
+simple_in(_Pid) ->
+  Tuple = {"Yo yo", 99},
+  ok = ?SERVER:out(Tuple),
+  {ok, NewTuple} = ?SERVER:in({"Yo, yo", 99}),
+  [?_assertEqual(Tuple, NewTuple)].
