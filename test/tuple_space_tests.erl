@@ -17,18 +17,31 @@ tuple_space_setup() ->
   {ok, Pid} = tuple_space:start_link(),
   Pid.
 
-tuple_space_cleanup(Pid) -> ok.
+tuple_space_cleanup(Pid) ->
+  tuple_space:stop(Pid).
 
 tuple_space_out_test_() ->
-  {"",
-   ?setup(fun simple_out/1)}.
+  [{"Test of out with simple Tuple",
+   ?setup(fun simple_out/1)},
+   {"Test of out with representative Tuple",
+    ?setup(fun representative_out/1)}].
 
 simple_out(Pid) ->
   Tuple = {"hello", 1},
-  Reply = space_call(Pid, {out, Tuple}),
+  Reply = tuple_space:out(Pid, Tuple),
 
   [?_assert(erlang:is_process_alive(Pid)),
    ?_assertEqual(ok, Reply)].
+
+representative_out(Pid) ->
+  Id = uuid:to_string(uuid:uuid1()),
+  Tenant = uuid:to_string(uuid:uuid1()),
+  JobId = uuid:to_string(uuid:uuid1()),
+  Tuple = {Id, "scalar", "P3", [Tenant, JobId]},
+  Reply = tuple_space:out(Pid, Tuple),
+
+  [?_assert(erlang:is_process_alive(Pid)),
+    ?_assertEqual(ok, Reply)].
 
 space_call(ServerRef, Request) ->
   gen_server:call(ServerRef, Request).
