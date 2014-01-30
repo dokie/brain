@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([stop/1]).
+-export([stop/0, out/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -30,6 +30,12 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+stop() ->
+  gen_server:call(?SERVER, stop).
+
+out(Tuple) ->
+  gen_server:call(?SERVER, {out, Tuple}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -78,8 +84,13 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call(_Request, _From, State) ->
-  {reply, ok, State}.
+handle_call({out, Tuple}, _From, _State) ->
+  {Reply, NewState} = do_out(Tuple),
+  {reply, Reply, NewState};
+
+handle_call(stop, _From, _State) ->
+  {stop, normal,ok, _State}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -145,6 +156,16 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Add a Tuple into the Tuplespace
+%%
+%% @spec do_out(Tuple) -> {ok, NewState}
+%% @end
+%%--------------------------------------------------------------------
+-spec(do_out(Tuple :: term())
+      -> {ok, NewState :: term()}).
 
-stop(Pid) ->
-  gen_server:call(Pid, terminate).
+do_out(_Tuple) ->
+  {ok, _Tuple}.
