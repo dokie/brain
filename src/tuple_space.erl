@@ -12,8 +12,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0,
-  out/2]).
+-export([start_link/0]).
+-export([stop/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -30,7 +30,6 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -147,5 +146,5 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-out(Pid, Tuple) ->
-  gen_server:cast(Pid, Tuple).
+stop(Pid) ->
+  gen_server:call(Pid, terminate).
