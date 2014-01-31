@@ -117,8 +117,8 @@ handle_call({out, Tuple}, _From, _State) ->
   {reply, Reply, NewState};
 
 handle_call({in, Template}, _From, _State) ->
-  {Reply, Match} = do_in(Template),
-  {reply, Reply, Match};
+  {ok, Match} = do_in(Template),
+  {reply, Match, _State};
 
 handle_call(stop, _From, _State) ->
   {stop, normal,ok, _State}.

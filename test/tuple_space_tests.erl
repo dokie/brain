@@ -14,8 +14,6 @@
 -define(SERVER, tuple_space).
 -define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
 
--define(DEBUG, true).
-
 tuple_space_setup() ->
   {ok, Pid} = ?SERVER:start_link(),
   Pid.
@@ -51,10 +49,7 @@ tuple_space_in_test_() ->
    ?setup(fun simple_in/1)}].
 
 simple_in(_Pid) ->
-  Tuple = {"Yo yo", 99},
+  Tuple = {"Yo yo", 99, <<"BS">>},
   ok = ?SERVER:out(Tuple),
-%%  {Reply, NewTuple} = ?SERVER:in({"Yo, yo", 99}),
-  ?debugFmt("result ~w~n",[?SERVER:in({"Yo, yo", 99})]),
-  [?_assert(true)].
-%%   [?_assertEqual(ok, Reply),
-%%    ?_assertEqual(Tuple, NewTuple)].
+  Match = ?SERVER:in({"Yo yo", 99, <<"BS">>}),
+  [?_assertEqual(Tuple, Match)].
