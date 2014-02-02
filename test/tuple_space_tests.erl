@@ -13,6 +13,9 @@
 
 -define(SERVER, tuple_space).
 -define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
+-define(INTEGER, fun(I) -> is_integer(I) end).
+-define(STRING, fun(S) -> io_lib:printable_list(S) end).
+-define(ANY, fun(X) -> true end).
 
 tuple_space_setup() ->
   {ok, Pid} = ?SERVER:start_link(),
@@ -45,11 +48,19 @@ representative_out(Pid) ->
     ?_assertEqual(ok, Reply)].
 
 tuple_space_in_test_() ->
-  [{"Test of in with simple Tuple",
-   ?setup(fun simple_in/1)}].
+  [{"Test of in with exact Tuple",
+   ?setup(fun exact_in/1)},
+   {"Test of in with match of first field",
+   ?setup(fun match_first_in/1)}].
 
-simple_in(_Pid) ->
+exact_in(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:in({"Yo yo", 99, <<"BS">>}),
+  [?_assertEqual(Tuple, Match)].
+
+match_first_in(_Pid) ->
+  Tuple = {"Yo yo", 99, <<"BS">>},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:in({?STRING, ?ANY, ?ANY}),
   [?_assertEqual(Tuple, Match)].

@@ -25,7 +25,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {tuples = []}).
 
 %%%===================================================================
 %%% API
@@ -95,7 +95,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  {ok, #state{}}.
+  {ok, #state{tuples = []}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,13 +112,13 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({out, Tuple}, _From, _State) ->
-  {Reply, NewState} = do_out(Tuple),
+handle_call({out, Tuple}, _From, State) ->
+  {Reply, NewState} = do_out(Tuple, State),
   {reply, Reply, NewState};
 
-handle_call({in, Template}, _From, _State) ->
-  {ok, Match} = do_in(Template),
-  {reply, Match, _State};
+handle_call({in, Template}, _From, State) ->
+  {ok, Match, NewState} = do_in(Template, State),
+  {reply, Match, NewState};
 
 handle_call(stop, _From, _State) ->
   {stop, normal,ok, _State}.
@@ -196,11 +196,12 @@ code_change(_OldVsn, State, _Extra) ->
 %% @spec do_out(Tuple) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
--spec(do_out(Tuple :: term())
-      -> {ok, NewState :: term()}).
+-spec(do_out(Tuple :: term(), State :: #state{})
+      -> {ok, NewState :: #state{}}).
 
-do_out(_Tuple) ->
-  {ok, _Tuple}.
+do_out(Tuple, State) ->
+  NewState = #state{tuples = [Tuple | State#state.tuples]},
+  {ok, NewState}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -211,12 +212,39 @@ do_out(_Tuple) ->
 %% @spec do_in(Template) -> {ok, Tuple} | {noreply, Template, Timeout}
 %% @end
 %%--------------------------------------------------------------------
--spec do_in(Template :: term()) -> {ok, Tuple :: term()}.
+-spec do_in(Template :: term(), State :: #state{}) -> {ok, Tuple :: term()}.
 
-do_in(Template) ->
-  {ok, Template}.
+do_in(Template, State) ->
+  TemplateList = tuple_to_list(Template),
+  TemplateFuns = funky(TemplateList),
+  Found = true,
+  Bail = fun(Tuple) -> match(TemplateFuns, tuple_to_list(Tuple), Found) end,
+  [H|_] = lists:takewhile(Bail, State#state.tuples),
+  {ok, H, State}.
 
--spec do_in(Template :: term(), Info :: timeout()) -> {noreply, Template :: term(), Timeout :: timeout()}.
+funky(TemplateList) ->
+  Mapper = fun(E) ->
+    if
+      is_function(E) -> E;
+      true -> fun (S) -> S =:= E end
+    end
+  end,
+  lists:map(Mapper, TemplateList).
 
-do_in(Template, _Info) ->
-  {ok, Template}.
+-spec do_in(Template :: tuple(), Info :: timeout(),  State :: #state{}) ->
+  {noreply, Template :: term(), Timeout :: timeout()}.
+
+do_in(Template, _Info, _State) ->
+  {ok, Template, _State}.
+
+match([], [], Acc) ->
+  Acc;
+
+match(TemplateFuns = [TH|TT], TupleList = [H|T], Acc) ->
+  case length(TemplateFuns) == length(TupleList) of
+    true ->
+      Matched = Acc and TH(H),
+      match(TT, T, Matched);
+    false ->
+      Acc and false
+  end.
