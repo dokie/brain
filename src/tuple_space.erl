@@ -233,12 +233,6 @@ funky(TemplateList) ->
   end,
   lists:map(Mapper, TemplateList).
 
--spec do_in(Template :: tuple(), Info :: timeout(),  State :: #state{}) ->
-  {noreply, Template :: term(), Timeout :: timeout()}.
-
-do_in(Template, _Info, _State) ->
-  {ok, Template, _State}.
-
 match([], [], Acc) ->
   Acc;
 
