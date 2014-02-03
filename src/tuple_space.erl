@@ -117,8 +117,11 @@ handle_call({out, Tuple}, _From, State) ->
   {reply, Reply, NewState};
 
 handle_call({in, Template}, _From, State) ->
-  {ok, Match, NewState} = do_in(Template, State),
-  {reply, Match, NewState};
+  Results = do_in(Template, State),
+  case Results of
+    [] -> {reply, {}, State};
+    [H|_] -> {reply, H, State}
+  end;
 
 handle_call(stop, _From, _State) ->
   {stop, normal,ok, _State}.
@@ -219,8 +222,7 @@ do_in(Template, State) ->
   TemplateFuns = funky(TemplateList),
   Found = true,
   Bail = fun(Tuple) -> match(TemplateFuns, tuple_to_list(Tuple), Found) end,
-  [H|_] = lists:takewhile(Bail, State#state.tuples),
-  {ok, H, State}.
+  lists:takewhile(Bail, State#state.tuples).
 
 funky(TemplateList) ->
   Mapper = fun(E) ->

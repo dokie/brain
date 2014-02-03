@@ -14,6 +14,8 @@
 -define(SERVER, tuple_space).
 -define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
 -define(INTEGER, fun(I) -> is_integer(I) end).
+-define(FLOAT, fun(F) -> is_float(F) end).
+-define(BINARY, fun(B) -> is_binary(B) end).
 -define(STRING, fun(S) -> io_lib:printable_list(S) end).
 -define(ANY, fun(X) -> true end).
 
@@ -50,17 +52,41 @@ representative_out(Pid) ->
 tuple_space_in_test_() ->
   [{"Test of in with exact Tuple",
    ?setup(fun exact_in/1)},
-   {"Test of in with match of first field",
-   ?setup(fun match_first_in/1)}].
+   {"Test of in with match of first field as STRING",
+   ?setup(fun match_first_string_in/1)},
+   {"Test of in with match of second field as INTEGER",
+   ?setup(fun match_second_int_in/1)},
+   {"Test of in with match of third field as FLOAT",
+   ?setup(fun match_third_float_in/1)},
+   {"Test of in with no exact match",
+   ?setup(fun no_match_inexact_in/1)}].
 
 exact_in(_Pid) ->
-  Tuple = {"Yo yo", 99, <<"BS">>},
+  Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:in({"Yo yo", 99, <<"BS">>}),
+  Match = ?SERVER:in({"Yo yo", 99, <<"BS">>, 1.23}),
   [?_assertEqual(Tuple, Match)].
 
-match_first_in(_Pid) ->
-  Tuple = {"Yo yo", 99, <<"BS">>},
+match_first_string_in(_Pid) ->
+  Tuple = {"Yo yo", 1, 3.14},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:in({?STRING, ?ANY, ?ANY}),
   [?_assertEqual(Tuple, Match)].
+
+match_second_int_in(_Pid) ->
+  Tuple = {"Yo yo", 42, 3.14},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:in({?ANY, ?INTEGER, ?ANY}),
+  [?_assertEqual(Tuple, Match)].
+
+match_third_float_in(_Pid) ->
+  Tuple = {"Yo yo", 42, 3.14},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:in({?ANY, ?ANY, ?FLOAT}),
+  [?_assertEqual(Tuple, Match)].
+
+no_match_inexact_in(_Pid) ->
+  Tuple = {"The Edge", 999, 3.14},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:in({"The Edge", 999, 2.17}),
+  [?_assertEqual({}, Match)].
