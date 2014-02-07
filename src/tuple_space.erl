@@ -250,6 +250,7 @@ finder(TFuns, Server, []) ->
   NewState = ?MODULE:state(),
   Bail = fun(Tuple) -> match(TFuns, tuple_to_list(Tuple), Found) end,
   Matches = lists:takewhile(Bail, NewState#state.tuples),
+  timer:sleep(50),
   finder(TFuns, Server, Matches);
 
 finder(_TFuns, Server, [H|_]) ->
