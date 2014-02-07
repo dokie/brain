@@ -13,7 +13,8 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1]).
+-export([stop/0, out/1, in/1, in/2]).
+-export([do_in/2, state/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -25,7 +26,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {tuples = []}).
+-record(state, {tuples = [], client, in_worker, server}).
 
 %%%===================================================================
 %%% API
@@ -65,6 +66,22 @@ out(Tuple) ->
 in(Template) ->
   gen_server:call(?SERVER, {in, Template}).
 
+-spec(in(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+in(Template, Timeout) ->
+  gen_server:call(?SERVER, {in, Template}, Timeout).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Gets the Server State
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(state() -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+state() ->
+  gen_server:call(?SERVER, get_state).
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the server
@@ -95,7 +112,7 @@ start_link() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  {ok, #state{tuples = []}}.
+  {ok, #state{tuples = [], server = self()}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -112,20 +129,22 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_call({out, Tuple}, _From, State) ->
   {Reply, NewState} = do_out(Tuple, State),
   {reply, Reply, NewState};
 
-handle_call({in, Template}, _From, State) ->
-  Results = do_in(Template, State),
-  case Results of
-    [] -> {reply, {}, State};
-    [H|_] -> {reply, H, State}
-  end;
+handle_call({in, Template}, From, State) ->
+  NewState = State#state{client = From},
+  Pid = spawn_link(?MODULE, do_in,[Template, NewState]),
+  NewState2 = NewState#state{in_worker = Pid},
+  {noreply, NewState2};
 
-handle_call(stop, _From, _State) ->
-  {stop, normal,ok, _State}.
+handle_call(stop, _From, State) ->
+  {stop, normal,ok, State};
 
+handle_call(get_state, _From, State) ->
+  {reply, State, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -155,8 +174,12 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info(_Info, State) ->
-  {noreply, State}.
+handle_info({_From, done, Tuple}, State) ->
+  Client = State#state.client,
+  NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), client = undefined, in_worker = undefined},
+  gen_server:reply(Client, Tuple),
+  {noreply, NewState}.
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -203,7 +226,7 @@ code_change(_OldVsn, State, _Extra) ->
       -> {ok, NewState :: #state{}}).
 
 do_out(Tuple, State) ->
-  NewState = #state{tuples = [Tuple | State#state.tuples]},
+  NewState = State#state{tuples = [Tuple | State#state.tuples]},
   {ok, NewState}.
 
 %%--------------------------------------------------------------------
@@ -220,9 +243,17 @@ do_out(Tuple, State) ->
 do_in(Template, State) ->
   TemplateList = tuple_to_list(Template),
   TemplateFuns = funky(TemplateList),
+  finder(TemplateFuns, State#state.server, []).
+
+finder(TFuns, Server, []) ->
   Found = true,
-  Bail = fun(Tuple) -> match(TemplateFuns, tuple_to_list(Tuple), Found) end,
-  lists:takewhile(Bail, State#state.tuples).
+  NewState = ?MODULE:state(),
+  Bail = fun(Tuple) -> match(TFuns, tuple_to_list(Tuple), Found) end,
+  Matches = lists:takewhile(Bail, NewState#state.tuples),
+  finder(TFuns, Server, Matches);
+
+finder(_TFuns, Server, [H|_]) ->
+  Server ! {self(), done, H}.
 
 funky(TemplateList) ->
   Mapper = fun(E) ->

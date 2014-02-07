@@ -12,7 +12,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -define(SERVER, tuple_space).
+
 -define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
+
 -define(INTEGER, fun(I) -> is_integer(I) end).
 -define(FLOAT, fun(F) -> is_float(F) end).
 -define(BINARY, fun(B) -> is_binary(B) end).
@@ -57,9 +59,7 @@ tuple_space_in_test_() ->
    {"Test of in with match of second field as INTEGER",
    ?setup(fun match_second_int_in/1)},
    {"Test of in with match of third field as FLOAT",
-   ?setup(fun match_third_float_in/1)},
-   {"Test of in with no exact match",
-   ?setup(fun no_match_inexact_in/1)}].
+   ?setup(fun match_third_float_in/1)}].
 
 exact_in(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
@@ -85,8 +85,12 @@ match_third_float_in(_Pid) ->
   Match = ?SERVER:in({?ANY, ?ANY, ?FLOAT}),
   [?_assertEqual(Tuple, Match)].
 
+tuple_space_in_timeout_test_() -> {
+  timeout, 3,
+  [{"Test of in with no exact match",
+   ?setup(fun no_match_inexact_in/1)}]}.
+
 no_match_inexact_in(_Pid) ->
   Tuple = {"The Edge", 999, 3.14},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:in({"The Edge", 999, 2.17}),
-  [?_assertEqual({}, Match)].
+  [?_assertExit({timeout, _}, ?SERVER:in({"The Edge", 999, 2.17}, 2000))].
