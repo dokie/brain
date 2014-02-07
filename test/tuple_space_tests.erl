@@ -107,3 +107,29 @@ no_match_at_first_in(_Pid) ->
     end),
   Match = ?SERVER:in({"The Edge", 999, 2.17}, 1500),
   [?_assertEqual(GoodTuple, Match)].
+
+tuple_space_inp_test_() ->
+  [{"Test of inp with exact Tuple",
+    ?setup(fun exact_inp/1)},
+    {"Test of inp with match of second field as INTEGER",
+      ?setup(fun match_second_int_inp/1)},
+    {"Test of inp with no match",
+      ?setup(fun no_match_inp/1)}].
+
+exact_inp(_Pid) ->
+  Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:inp({"Yo yo", 99, <<"BS">>, 1.23}),
+  [?_assertEqual(Tuple, Match)].
+
+match_second_int_inp(_Pid) ->
+  Tuple = {"Yo yo", 42, 3.14},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:inp({?ANY, ?INTEGER, ?ANY}),
+  [?_assertEqual(Tuple, Match)].
+
+no_match_inp(_Pid) ->
+  Tuple = {"The Edge", 999, 3.14},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:inp({?ANY, ?INTEGER, ?STRING}),
+  [?_assertEqual(undefined, Match)].

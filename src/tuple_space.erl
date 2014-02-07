@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1, in/2]).
+-export([stop/0, out/1, in/1, in/2, inp/1]).
 -export([do_in/2, state/0]).
 
 %% gen_server callbacks
@@ -25,6 +25,7 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(WAIT, 50).
 
 -record(state, {tuples = [], client, in_worker, server}).
 
@@ -70,6 +71,18 @@ in(Template) ->
 
 in(Template, Timeout) ->
   gen_server:call(?SERVER, {in, Template}, Timeout).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Gets a Tuple from the Tuplespace that matches a Template
+%% Non Blocking Call s returns undefined if no Tuple matches
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(inp(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+inp(Template) ->
+  gen_server:call(?SERVER, {inp, Template}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -139,6 +152,10 @@ handle_call({in, Template}, From, State) ->
   Pid = spawn_link(?MODULE, do_in,[Template, NewState]),
   NewState2 = NewState#state{in_worker = Pid},
   {noreply, NewState2};
+
+handle_call({inp, Template}, _From, State) ->
+  Reply = do_inp(Template, State),
+  {reply, Reply, State};
 
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
@@ -235,7 +252,7 @@ do_out(Tuple, State) ->
 %% Read a Tuple from the Tuplespace based upon a template
 %% This is a blocking call so we can pass a timeout value additionally.
 %%
-%% @spec do_in(Template) -> {ok, Tuple} | {noreply, Template, Timeout}
+%% @spec do_in(Template, State) -> {ok, Tuple} | {noreply, Template, Timeout}
 %% @end
 %%--------------------------------------------------------------------
 -spec do_in(Template :: term(), State :: #state{}) -> {ok, Tuple :: term()}.
@@ -246,15 +263,19 @@ do_in(Template, State) ->
   finder(TemplateFuns, State#state.server, []).
 
 finder(TFuns, Server, []) ->
-  Found = true,
   NewState = ?MODULE:state(),
-  Bail = fun(Tuple) -> match(TFuns, tuple_to_list(Tuple), Found) end,
-  Matches = lists:takewhile(Bail, NewState#state.tuples),
-  timer:sleep(50),
+  Matches = find_all_matches(TFuns, NewState),
+  timer:sleep(?WAIT),
   finder(TFuns, Server, Matches);
 
 finder(_TFuns, Server, [H|_]) ->
   Server ! {self(), done, H}.
+
+find_all_matches(TFuns, State) ->
+  Found = true,
+  Bail = fun(Tuple) -> match(TFuns, tuple_to_list(Tuple), Found) end,
+  Matches = lists:takewhile(Bail, State#state.tuples),
+  Matches.
 
 funky(TemplateList) ->
   Mapper = fun(E) ->
@@ -275,4 +296,24 @@ match(TemplateFuns = [TH|TT], TupleList = [H|T], Acc) ->
       match(TT, T, Matched);
     false ->
       Acc and false
+  end.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Read a Tuple from the Tuplespace based upon a template
+%% This is a non-blocking call so will return undefined if no match.
+%%
+%% @spec do_inp(Template, State) -> {ok, Tuple} | {ok, undefined}
+%% @end
+%%--------------------------------------------------------------------
+-spec do_inp(Template :: term(), State :: #state{}) -> {ok, Tuple :: term() | undefined}.
+
+do_inp(Template, State) ->
+  TemplateList = tuple_to_list(Template),
+  TemplateFuns = funky(TemplateList),
+  Matches = find_all_matches(TemplateFuns, State),
+  case Matches of
+    [] -> undefined;
+    [H|_] -> H
   end.
