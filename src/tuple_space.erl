@@ -13,8 +13,8 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1, in/2, inp/1]).
--export([do_in/2, state/0]).
+-export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2]).
+-export([do_in/2, do_rd/2, state/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -58,7 +58,7 @@ out(Tuple) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Gets a Tuple from the Tuplespace that matches a Template
-%% Blocking Call
+%% and remmoves it. This is a Blocking Call
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -83,6 +83,24 @@ in(Template, Timeout) ->
 
 inp(Template) ->
   gen_server:call(?SERVER, {inp, Template}).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Reads a Tuple from the Tuplespace that matches a Template
+%% and leaves it there. This is a Blocking Call
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(rd(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+rd(Template) ->
+  gen_server:call(?SERVER, {rd, Template}).
+
+-spec(rd(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+rd(Template, Timeout) ->
+  gen_server:call(?SERVER, {rd, Template}, Timeout).
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -157,6 +175,12 @@ handle_call({inp, Template}, _From, State) ->
   Reply = do_inp(Template, State),
   {reply, Reply, State};
 
+handle_call({rd, Template}, From, State) ->
+  NewState = State#state{client = From},
+  Pid = spawn_link(?MODULE, do_rd,[Template, NewState]),
+  NewState2 = NewState#state{in_worker = Pid},
+  {noreply, NewState2};
+
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
 
@@ -191,9 +215,14 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({_From, done, Tuple}, State) ->
+handle_info({_From, done, Mode, Tuple}, State) ->
   Client = State#state.client,
-  NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), client = undefined, in_worker = undefined},
+  NewState = case in == Mode of
+    true ->
+      State#state{tuples = lists:delete(Tuple, State#state.tuples),
+      client = undefined, in_worker = undefined};
+    false -> State
+  end,
   gen_server:reply(Client, Tuple),
   {noreply, NewState}.
 
@@ -260,16 +289,16 @@ do_out(Tuple, State) ->
 do_in(Template, State) ->
   TemplateList = tuple_to_list(Template),
   TemplateFuns = funky(TemplateList),
-  finder(TemplateFuns, State#state.server, []).
+  finder(in, TemplateFuns, State#state.server, []).
 
-finder(TFuns, Server, []) ->
+finder(Mode, TFuns, Server, []) ->
   NewState = ?MODULE:state(),
   Matches = find_all_matches(TFuns, NewState),
   timer:sleep(?WAIT),
-  finder(TFuns, Server, Matches);
+  finder(Mode, TFuns, Server, Matches);
 
-finder(_TFuns, Server, [H|_]) ->
-  Server ! {self(), done, H}.
+finder(Mode, _TFuns, Server, [H|_]) ->
+  Server ! {self(), done, Mode, H}.
 
 find_all_matches(TFuns, State) ->
   Found = true,
@@ -317,3 +346,20 @@ do_inp(Template, State) ->
     [] -> undefined;
     [H|_] -> H
   end.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Read a Tuple from the Tuplespace based upon a template but leave it
+%% in the Tuplespace
+%% This is a blocking call so we can pass a timeout value additionally.
+%%
+%% @spec do_rd(Template, State) -> {ok, Tuple} | {noreply, Template, Timeout}
+%% @end
+%%--------------------------------------------------------------------
+-spec do_rd(Template :: term(), State :: #state{}) -> {ok, Tuple :: term()}.
+
+do_rd(Template, State) ->
+  TemplateList = tuple_to_list(Template),
+  TemplateFuns = funky(TemplateList),
+  finder(rd, TemplateFuns, State#state.server, []).

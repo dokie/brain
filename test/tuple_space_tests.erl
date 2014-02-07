@@ -65,7 +65,9 @@ exact_in(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:in({"Yo yo", 99, <<"BS">>, 1.23}),
-  [?_assertEqual(Tuple, Match)].
+  Second = ?SERVER:inp(Tuple),
+  [?_assertEqual(Tuple, Match),
+   ?_assertEqual(undefined, Second)].
 
 match_first_string_in(_Pid) ->
   Tuple = {"Yo yo", 1, 3.14},
@@ -133,3 +135,14 @@ no_match_inp(_Pid) ->
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:inp({?ANY, ?INTEGER, ?STRING}),
   [?_assertEqual(undefined, Match)].
+
+tuple_space_rd_test_() ->
+  [{"Test of rd with exact match",
+   ?setup(fun exact_rd/1)}].
+
+exact_rd(_Pid) ->
+  Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:rd({"Yo yo", 99, <<"BS">>, 1.23}),
+  [?_assertEqual(Tuple, Match)].
+
