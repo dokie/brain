@@ -156,7 +156,9 @@ tuple_space_guard_test_() ->
    {"Test rd with tuple but without integer timeout",
    ?setup(fun rd_arg_not_timeout/1)},
    {"Test rd with tuple but without valid integer timeout",
-   ?setup(fun rd_arg_not_valid_timeout/1)}].
+   ?setup(fun rd_arg_not_valid_timeout/1)},
+   {"Test rdp without tuple",
+   ?setup(fun rdp_arg_not_tuple/1)}].
 
 in_arg_not_tuple(_Pid) ->
   NotATuple = <<"Binary">>,
@@ -193,3 +195,33 @@ rd_arg_not_valid_timeout(_Pid) ->
   Template = {integer, any, float, "Hi"},
   NotATValidimeout = -1,
   [?_assertError(function_clause, ?SERVER:rd(Template, NotATValidimeout))].
+
+rdp_arg_not_tuple(_Pid) ->
+  NotATuple = ok,
+  [?_assertError(function_clause, ?SERVER:rdp(NotATuple))].
+
+tuple_space_rdp_test_() ->
+  [{"Test of rdp with exact Tuple",
+    ?setup(fun exact_rdp/1)},
+    {"Test of rdp with match of second field as atom",
+      ?setup(fun match_second_atom_rdp/1)},
+    {"Test of rdp with no match",
+      ?setup(fun no_match_rdp/1)}].
+
+exact_rdp(_Pid) ->
+  Tuple = {"Good Bye", ok, <<"BS">>, 1.23},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:rdp(Tuple),
+  [?_assertEqual(Tuple, Match)].
+
+match_second_atom_rdp(_Pid) ->
+  Tuple = {"Ciao", pizza, 3.14},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:rdp({string, atom, any}),
+  [?_assertEqual(Tuple, Match)].
+
+no_match_rdp(_Pid) ->
+  Tuple = {<<1,2>>, "FFF", []},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:rdp({binary, integer, string}),
+  [?_assertEqual(undefined, Match)].

@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2]).
+-export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2, rdp/1]).
 -export([do_in/2, do_rd/2, state/0]).
 
 %% gen_server callbacks
@@ -75,7 +75,7 @@ in(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 
 %%--------------------------------------------------------------------
 %% @doc
 %% Gets a Tuple from the Tuplespace that matches a Template
-%% Non Blocking Call s returns undefined if no Tuple matches
+%% Non Blocking Call which returns undefined if no Tuple matches
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -100,6 +100,18 @@ rd(Template) when is_tuple(Template) ->
 
 rd(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 ->
   gen_server:call(?SERVER, {rd, Template}, Timeout).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Reads a Tuple from the Tuplespace that matches a Template
+%% and leaves it there - Blocking Call which returns undefined if no Tuple matches
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(rdp(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+rdp(Template) when is_tuple(Template) ->
+  gen_server:call(?SERVER, {rdp, Template}).
 
 
 %%--------------------------------------------------------------------
@@ -180,6 +192,10 @@ handle_call({rd, Template}, From, State) ->
   Pid = spawn_link(?MODULE, do_rd,[Template, NewState]),
   NewState2 = NewState#state{in_worker = Pid},
   {noreply, NewState2};
+
+handle_call({rdp, Template}, _From, State) ->
+  Reply = do_rdp(Template, State),
+  {reply, Reply, State};
 
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
@@ -311,6 +327,7 @@ mapper(Elem) when integer =:= Elem -> fun (I) -> is_integer(I) end;
 mapper(Elem) when string =:= Elem -> fun (S) -> io_lib:printable_list(S) end;
 mapper(Elem) when float =:= Elem -> fun (F) -> is_float(F) end;
 mapper(Elem) when binary =:= Elem -> fun (B) -> is_binary(B) end;
+mapper(Elem) when atom =:= Elem -> fun (A) -> is_atom(A) end;
 mapper(Elem) when any =:= Elem -> fun (_A) -> true end;
 mapper(Elem) -> fun (S) -> S =:= Elem end.
 
@@ -333,7 +350,7 @@ match(TemplateFuns = [TH|TT], TupleList = [H|T], Acc) ->
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
-%% Read a Tuple from the Tuplespace based upon a template
+%% Get a Tuple from the Tuplespace based upon a template
 %% This is a non-blocking call so will return undefined if no match.
 %%
 %% @spec do_inp(Template, State) -> {ok, Tuple} | {ok, undefined}
@@ -366,3 +383,23 @@ do_rd(Template, State) ->
   TemplateList = tuple_to_list(Template),
   TemplateFuns = funky(TemplateList),
   finder(rd, TemplateFuns, State#state.server, []).
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Read a Tuple from the Tuplespace based upon a template
+%% This is a non-blocking call so will return undefined if no match.
+%%
+%% @spec do_rdp(Template, State) -> {ok, Tuple} | {ok, undefined}
+%% @end
+%%--------------------------------------------------------------------
+-spec do_rdp(Template :: term(), State :: #state{}) -> {ok, Tuple :: term() | undefined}.
+
+do_rdp(Template, State) ->
+  TemplateList = tuple_to_list(Template),
+  TemplateFuns = funky(TemplateList),
+  Matches = find_all_matches(TemplateFuns, State),
+  case Matches of
+    [] -> undefined;
+    [H|_] -> H
+  end.
