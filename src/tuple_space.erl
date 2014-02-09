@@ -310,6 +310,11 @@ funky(TemplateList) ->
   Mapper = fun(E) ->
     if
       is_function(E) -> E;
+      integer =:= E -> fun(I) -> is_integer(I) end;
+      string =:= E -> fun(S) -> io_lib:printable_list(S) end;
+      float =:= E -> fun(F) -> is_float(F) end;
+      binary =:= E -> fun(B) -> is_binary(B) end;
+      any =:= E -> fun (_A) -> true end;
       true -> fun (S) -> S =:= E end
     end
   end,

@@ -15,12 +15,6 @@
 
 -define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
 
--define(INTEGER, fun(I) -> is_integer(I) end).
--define(FLOAT, fun(F) -> is_float(F) end).
--define(BINARY, fun(B) -> is_binary(B) end).
--define(STRING, fun(S) -> io_lib:printable_list(S) end).
--define(ANY, fun(X) -> true end).
-
 tuple_space_setup() ->
   {ok, Pid} = ?SERVER:start_link(),
   Pid.
@@ -72,19 +66,19 @@ exact_in(_Pid) ->
 match_first_string_in(_Pid) ->
   Tuple = {"Yo yo", 1, 3.14},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:in({?STRING, ?ANY, ?ANY}),
+  Match = ?SERVER:in({string, any, any}),
   [?_assertEqual(Tuple, Match)].
 
 match_second_int_in(_Pid) ->
   Tuple = {"Yo yo", 42, 3.14},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:in({?ANY, ?INTEGER, ?ANY}),
+  Match = ?SERVER:in({any, integer, any}),
   [?_assertEqual(Tuple, Match)].
 
 match_third_float_in(_Pid) ->
   Tuple = {"Yo yo", 42, 3.14},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:in({?ANY, ?ANY, ?FLOAT}),
+  Match = ?SERVER:in({any, any, float}),
   [?_assertEqual(Tuple, Match)].
 
 tuple_space_in_timeout_test_() -> {
@@ -127,13 +121,13 @@ exact_inp(_Pid) ->
 match_second_int_inp(_Pid) ->
   Tuple = {"Yo yo", 42, 3.14},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:inp({?ANY, ?INTEGER, ?ANY}),
+  Match = ?SERVER:inp({any, integer, any}),
   [?_assertEqual(Tuple, Match)].
 
 no_match_inp(_Pid) ->
   Tuple = {"The Edge", 999, 3.14},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:inp({?ANY, ?INTEGER, ?STRING}),
+  Match = ?SERVER:inp({any, integer, string}),
   [?_assertEqual(undefined, Match)].
 
 tuple_space_rd_test_() ->
