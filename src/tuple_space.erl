@@ -52,7 +52,7 @@ stop() ->
 %%--------------------------------------------------------------------
 -spec(out(Tuple :: tuple()) -> {atom(), term()}).
 
-out(Tuple) ->
+out(Tuple) when is_tuple(Tuple) ->
   gen_server:call(?SERVER, {out, Tuple}).
 
 %%--------------------------------------------------------------------
@@ -64,12 +64,12 @@ out(Tuple) ->
 %%--------------------------------------------------------------------
 -spec(in(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
-in(Template) ->
+in(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {in, Template}).
 
 -spec(in(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
-in(Template, Timeout) ->
+in(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 ->
   gen_server:call(?SERVER, {in, Template}, Timeout).
 
 %%--------------------------------------------------------------------
@@ -81,7 +81,7 @@ in(Template, Timeout) ->
 %%--------------------------------------------------------------------
 -spec(inp(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
-inp(Template) ->
+inp(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {inp, Template}).
 
 %%--------------------------------------------------------------------
@@ -93,12 +93,12 @@ inp(Template) ->
 %%--------------------------------------------------------------------
 -spec(rd(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
-rd(Template) ->
+rd(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {rd, Template}).
 
 -spec(rd(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
-rd(Template, Timeout) ->
+rd(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 ->
   gen_server:call(?SERVER, {rd, Template}, Timeout).
 
 
@@ -306,18 +306,16 @@ find_all_matches(TFuns, State) ->
   Matches = lists:takewhile(Bail, State#state.tuples),
   Matches.
 
+mapper(Elem) when is_function(Elem) -> Elem;
+mapper(Elem) when integer =:= Elem -> fun (I) -> is_integer(I) end;
+mapper(Elem) when string =:= Elem -> fun (S) -> io_lib:printable_list(S) end;
+mapper(Elem) when float =:= Elem -> fun (F) -> is_float(F) end;
+mapper(Elem) when binary =:= Elem -> fun (B) -> is_binary(B) end;
+mapper(Elem) when any =:= Elem -> fun (_A) -> true end;
+mapper(Elem) -> fun (S) -> S =:= Elem end.
+
 funky(TemplateList) ->
-  Mapper = fun(E) ->
-    if
-      is_function(E) -> E;
-      integer =:= E -> fun(I) -> is_integer(I) end;
-      string =:= E -> fun(S) -> io_lib:printable_list(S) end;
-      float =:= E -> fun(F) -> is_float(F) end;
-      binary =:= E -> fun(B) -> is_binary(B) end;
-      any =:= E -> fun (_A) -> true end;
-      true -> fun (S) -> S =:= E end
-    end
-  end,
+  Mapper = fun (E) -> mapper(E) end,
   lists:map(Mapper, TemplateList).
 
 match([], [], Acc) ->
