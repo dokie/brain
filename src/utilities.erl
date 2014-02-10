@@ -22,16 +22,16 @@
 
 pmap(F, L) when is_function(F), is_list(L) ->
   S = self(),
-  Workers = lists:map(fun(Elem) -> spawn(fun() -> pmap_f(S, F, Elem) end) end, L),
-  pmap_gather(Workers).
+  Workers = lists:map(fun(Elem) -> spawn(fun() -> execute_and_report(S, F, Elem) end) end, L),
+  gather_results(Workers).
 
-pmap_gather([H|T]) ->
+gather_results([Worker|T]) when is_pid(Worker) ->
   receive
-    {H, Res} -> [Res|pmap_gather(T)]
+    {Worker, Res} -> [Res| gather_results(T)]
   end;
 
-pmap_gather([]) ->
+gather_results([]) ->
   [].
 
-pmap_f(Parent, F, Elem) ->
+execute_and_report(Parent, F, Elem) ->
   Parent ! {self(), (catch F(Elem))}.
