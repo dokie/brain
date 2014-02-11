@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2, rdp/1]).
+-export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2, rdp/1, eval/1]).
 -export([do_in/2, do_rd/2, state/0]).
 
 %% gen_server callbacks
@@ -50,7 +50,7 @@ stop() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(out(Tuple :: tuple()) -> {atom(), term()}).
+-spec(out(Tuple :: tuple()) -> {ok}).
 
 out(Tuple) when is_tuple(Tuple) ->
   gen_server:call(?SERVER, {out, Tuple}).
@@ -113,6 +113,17 @@ rd(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 
 rdp(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {rdp, Template}).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Evaluates a tuple of fun's to produce an actual Tuple to store in the
+%% Tuplespace. The execution is done in parallel.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(eval(Specification :: tuple()) -> {ok} | {noreply, term(), timeout()}).
+
+eval(Specification) when is_tuple(Specification) ->
+  gen_server:call(?SERVER, {eval, Specification}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -196,6 +207,10 @@ handle_call({rd, Template}, From, State) ->
 handle_call({rdp, Template}, _From, State) ->
   Reply = do_rdp(Template, State),
   {reply, Reply, State};
+
+handle_call({eval, Specification}, _From, State) ->
+  {Reply, NewState} = do_eval(Specification, State),
+  {reply, Reply, NewState};
 
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
@@ -403,3 +418,25 @@ do_rdp(Template, State) ->
     [] -> undefined;
     [H|_] -> H
   end.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Execute a Specification of a Tuple and when executed in parallel
+%% add the Tuple to the tuplespace
+%%
+%% @spec do_eval(Specification, State) -> ok
+%% @end
+%%--------------------------------------------------------------------
+-spec do_eval(Specification :: tuple(), State :: #state{}) -> {ok, NewState :: #state{}}.
+
+do_eval(Specification, State) when is_tuple(Specification) ->
+  F = fun
+    (E) when is_function(E) ->
+      E();
+    (E) ->
+      E
+  end,
+  L = tuple_to_list(Specification),
+  Tuple = list_to_tuple(utilities:pmap(F, L)),
+  do_out(Tuple, State).

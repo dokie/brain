@@ -108,9 +108,11 @@ tuple_space_inp_test_() ->
   [{"Test of inp with exact Tuple",
     ?setup(fun exact_inp/1)},
     {"Test of inp with match of second field as INTEGER",
-      ?setup(fun match_second_int_inp/1)},
+    ?setup(fun match_second_int_inp/1)},
+    {"Test of inp with mismatched template size",
+    ?setup(fun mismatch_tuple_inp/1)},
     {"Test of inp with no match",
-      ?setup(fun no_match_inp/1)}].
+    ?setup(fun no_match_inp/1)}].
 
 exact_inp(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
@@ -124,6 +126,12 @@ match_second_int_inp(_Pid) ->
   Match = ?SERVER:inp({any, integer, any}),
   [?_assertEqual(Tuple, Match)].
 
+mismatch_tuple_inp(_Pid) ->
+  Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:inp({string, fun (E) -> E =:= 99 end, binary}),
+  [?_assertEqual(undefined, Match)].
+
 no_match_inp(_Pid) ->
   Tuple = {"The Edge", 999, 3.14},
   ok = ?SERVER:out(Tuple),
@@ -132,13 +140,27 @@ no_match_inp(_Pid) ->
 
 tuple_space_rd_test_() ->
   [{"Test of rd with exact match",
-   ?setup(fun exact_rd/1)}].
+   ?setup(fun exact_rd/1)},
+   {"Test of rd with exact match after none found initially",
+   ?setup(fun no_match_at_first_rd/1)}].
 
 exact_rd(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:rd({"Yo yo", 99, <<"BS">>, 1.23}),
-  [?_assertEqual(Tuple, Match)].
+  [?_assertEqual(Tuple, Match),
+   ?_assertEqual(Tuple, Match)].
+
+no_match_at_first_rd(_Pid) ->
+  BadTuple = {"The Edge", 999, 3.14},
+  GoodTuple = {"The Edge", 999, 2.17},
+  ok = ?SERVER:out(BadTuple),
+  spawn(fun () ->
+    timer:sleep(1000),
+    ?SERVER:out(GoodTuple)
+  end),
+  Match = ?SERVER:rd({"The Edge", 999, 2.17}, 1500),
+  [?_assertEqual(GoodTuple, Match)].
 
 tuple_space_guard_test_() ->
   [{"Test out without tuple",
@@ -225,3 +247,13 @@ no_match_rdp(_Pid) ->
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:rdp({binary, integer, string}),
   [?_assertEqual(undefined, Match)].
+
+tuple_space_eval_test_() ->
+  [{"Test of simple eval",
+   ?setup(fun simple_eval/1)}].
+
+simple_eval(_Pid) ->
+  Generator = {"roots", fun() -> math:sqrt(4) end, fun () -> math:sqrt(9) end },
+  ok = ?SERVER:eval(Generator),
+  Match = ?SERVER:rdp({"roots", float, float}),
+  [?_assertEqual({"roots", 2.0, 3.0}, Match)].
