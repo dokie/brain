@@ -361,6 +361,7 @@ find_all_matches(TFuns, State) ->
 
 mapper(Elem) when is_function(Elem, 1) -> Elem;
 mapper(Elem) when integer =:= Elem -> fun (I) -> is_integer(I) end;
+mapper(Elem) when int =:= Elem -> fun (I) -> is_integer(I) end;
 mapper(Elem) when string =:= Elem -> fun (S) -> io_lib:printable_list(S) end;
 mapper(Elem) when float =:= Elem -> fun (F) -> is_float(F) end;
 mapper(Elem) when binary =:= Elem -> fun (B) -> is_binary(B) end;
