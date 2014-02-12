@@ -27,7 +27,7 @@
 -define(SERVER, ?MODULE).
 -define(WAIT, 50).
 
--record(state, {tuples = [], client, in_worker, server}).
+-record(state, {tuples = [], in_client, rd_client, in_worker, rd_worker, server}).
 
 %%%===================================================================
 %%% API
@@ -189,7 +189,7 @@ handle_call({out, Tuple}, _From, State) ->
   {reply, Reply, NewState};
 
 handle_call({in, Template}, From, State) ->
-  NewState = State#state{client = From},
+  NewState = State#state{in_client = From},
   Pid = spawn_link(?MODULE, do_in,[Template, NewState]),
   NewState2 = NewState#state{in_worker = Pid},
   {noreply, NewState2};
@@ -199,9 +199,9 @@ handle_call({inp, Template}, _From, State) ->
   {reply, Reply, State};
 
 handle_call({rd, Template}, From, State) ->
-  NewState = State#state{client = From},
+  NewState = State#state{rd_client = From},
   Pid = spawn_link(?MODULE, do_rd,[Template, NewState]),
-  NewState2 = NewState#state{in_worker = Pid},
+  NewState2 = NewState#state{rd_worker = Pid},
   {noreply, NewState2};
 
 handle_call({rdp, Template}, _From, State) ->
@@ -246,16 +246,17 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({_From, done, Mode, Tuple}, State) ->
-  Client = State#state.client,
-  NewState = case in == Mode of
-    true ->
-      State#state{tuples = lists:delete(Tuple, State#state.tuples),
-      client = undefined, in_worker = undefined};
-    false -> State
-  end,
-  gen_server:reply(Client, Tuple),
-  {noreply, NewState}.
+handle_info({_From, done, in, Tuple}, State) ->
+  InClient = State#state.in_client,
+  InState = State#state{tuples = lists:delete(Tuple, State#state.tuples), in_client = undefined, in_worker = undefined},
+  gen_server:reply(InClient, Tuple),
+  {noreply, InState};
+handle_info({_From, done, rd, Tuple}, State) ->
+  RdClient = State#state.rd_client,
+  RdState = State#state{tuples = lists:delete(Tuple, State#state.tuples), rd_client = undefined, rd_worker = undefined},
+  gen_server:reply(RdClient, Tuple),
+  {noreply, RdState}.
+
 
 
 %%--------------------------------------------------------------------
