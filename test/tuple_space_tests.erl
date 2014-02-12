@@ -104,6 +104,18 @@ no_match_at_first_in(_Pid) ->
   Match = ?SERVER:in({"The Edge", 999, 2.17}, 1500),
   [?_assertEqual(GoodTuple, Match)].
 
+tuple_space_in_bad_test_() ->
+  [{"Test of in with a bad template fun",
+   ?setup(fun bad_template/1)}].
+
+bad_template(_Pid) ->
+  Tuple = {"Now", 42},
+  ok = ?SERVER:out(Tuple),
+  Bad = {any, fun (_X) -> 1/0 end},
+  Match = ?SERVER:in(Bad),
+  [?_assertEqual(undefined, Match)].
+
+
 tuple_space_inp_test_() ->
   [{"Test of inp with exact Tuple",
     ?setup(fun exact_inp/1)},
