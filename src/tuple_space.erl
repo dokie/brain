@@ -35,6 +35,17 @@
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Starts the server
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(start_link() ->
+  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+start_link() ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Stops the server
 %%
 %% @end
@@ -65,7 +76,7 @@ out(Tuple) when is_tuple(Tuple) ->
 -spec(in(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
 in(Template) when is_tuple(Template) ->
-  gen_server:call(?SERVER, {in, Template}).
+  gen_server:call(?SERVER, {in, Template}, infinity).
 
 -spec(in(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
@@ -94,7 +105,7 @@ inp(Template) when is_tuple(Template) ->
 -spec(rd(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
 rd(Template) when is_tuple(Template) ->
-  gen_server:call(?SERVER, {rd, Template}).
+  gen_server:call(?SERVER, {rd, Template}, infinity).
 
 -spec(rd(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
@@ -135,17 +146,6 @@ eval(Specification) when is_tuple(Specification) ->
 
 state() ->
   gen_server:call(?SERVER, get_state).
-
-%%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(start_link() ->
-  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link() ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -190,6 +190,7 @@ handle_call({out, Tuple}, _From, State) ->
 
 handle_call({in, Template}, From, State) ->
   NewState = State#state{in_client = From},
+  process_flag(trap_exit, true),
   Pid = spawn_link(?MODULE, do_in,[Template, NewState]),
   NewState2 = NewState#state{in_worker = Pid},
   {noreply, NewState2};
@@ -200,6 +201,7 @@ handle_call({inp, Template}, _From, State) ->
 
 handle_call({rd, Template}, From, State) ->
   NewState = State#state{rd_client = From},
+  process_flag(trap_exit, true),
   Pid = spawn_link(?MODULE, do_rd,[Template, NewState]),
   NewState2 = NewState#state{rd_worker = Pid},
   {noreply, NewState2};
@@ -247,16 +249,35 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_info({_From, done, in, Tuple}, State) ->
-  InClient = State#state.in_client,
-  InState = State#state{tuples = lists:delete(Tuple, State#state.tuples), in_client = undefined, in_worker = undefined},
-  gen_server:reply(InClient, Tuple),
-  {noreply, InState};
-handle_info({_From, done, rd, Tuple}, State) ->
-  RdClient = State#state.rd_client,
-  RdState = State#state{tuples = lists:delete(Tuple, State#state.tuples), rd_client = undefined, rd_worker = undefined},
-  gen_server:reply(RdClient, Tuple),
-  {noreply, RdState}.
+  Client = State#state.in_client,
+  NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), in_client = undefined, in_worker = undefined},
+  gen_server:reply(Client, Tuple),
+  {noreply, NewState};
 
+handle_info({_From, done, rd, Tuple}, State) ->
+  Client = State#state.rd_client,
+  NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), rd_client = undefined, rd_worker = undefined},
+  gen_server:reply(Client, Tuple),
+  {noreply, NewState};
+
+handle_info({'EXIT', _Pid, normal}, State) ->
+  {noreply, State};
+
+handle_info({'EXIT', Pid, _}, State) ->
+  InWorker = State#state.in_worker,
+  RdWorker = State#state.rd_worker,
+  case Pid of
+    InWorker ->
+      InClient = State#state.in_client,
+      InState = State#state{in_client = undefined, in_worker = undefined},
+      gen_server:reply(InClient, undefined),
+      {noreply, InState};
+    RdWorker ->
+      RdClient = State#state.rd_client,
+      RdState = State#state{rd_client = undefined, rd_worker = undefined},
+      gen_server:reply(RdClient, undefined),
+      {noreply, RdState}
+  end.
 
 
 %%--------------------------------------------------------------------
@@ -338,7 +359,7 @@ find_all_matches(TFuns, State) ->
   Matches = lists:takewhile(Bail, State#state.tuples),
   Matches.
 
-mapper(Elem) when is_function(Elem) -> Elem;
+mapper(Elem) when is_function(Elem, 1) -> Elem;
 mapper(Elem) when integer =:= Elem -> fun (I) -> is_integer(I) end;
 mapper(Elem) when string =:= Elem -> fun (S) -> io_lib:printable_list(S) end;
 mapper(Elem) when float =:= Elem -> fun (F) -> is_float(F) end;
@@ -433,7 +454,7 @@ do_rdp(Template, State) ->
 
 do_eval(Specification, State) when is_tuple(Specification) ->
   F = fun
-    (E) when is_function(E) ->
+    (E) when is_function(E, 0) ->
       E();
     (E) ->
       E
