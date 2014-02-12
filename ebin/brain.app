@@ -1,6 +1,6 @@
 {application,brain,
              [{description,[]},
-              {vsn,"1"},
+              {vsn,"0.0.1"},
               {registered,[]},
               {applications,[kernel,stdlib]},
               {mod,{brain_app,[]}},
