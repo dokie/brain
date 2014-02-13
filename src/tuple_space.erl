@@ -27,7 +27,7 @@
 -define(SERVER, ?MODULE).
 -define(WAIT, 50).
 
--record(state, {tuples = [], in_client, rd_client, in_worker, rd_worker}).
+-record(state, {tuples = [], in_requests, rd_client, rd_worker}).
 
 %%%===================================================================
 %%% API
@@ -166,7 +166,7 @@ state() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  {ok, #state{tuples = []}}.
+  {ok, #state{tuples = [], in_requests = ets:new(in_requests, [bag, named_table])}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -189,11 +189,10 @@ handle_call({out, Tuple}, _From, State) ->
   {reply, Reply, NewState};
 
 handle_call({in, Template}, From, State) ->
-  NewState = State#state{in_client = From},
   process_flag(trap_exit, true),
   Pid = spawn_link(?MODULE, do_in, [Template, self()]),
-  NewState2 = NewState#state{in_worker = Pid},
-  {noreply, NewState2};
+  ets:insert(State#state.in_requests, {Pid, From}),
+  {noreply, State};
 
 handle_call({inp, Template}, _From, State) ->
   Reply = do_inp(Template, State),
@@ -248,9 +247,10 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({_From, done, in, Tuple}, State) ->
-  Client = State#state.in_client,
-  NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), in_client = undefined, in_worker = undefined},
+handle_info({From, done, in, Tuple}, State) ->
+  [{_, Client}] = ets:lookup(State#state.in_requests, From),
+  ets:delete(State#state.in_requests, From),
+  NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples)},
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
   gen_server:reply(Client, Stripped),
   {noreply, NewState};
@@ -266,20 +266,26 @@ handle_info({'EXIT', _Pid, normal}, State) ->
   {noreply, State};
 
 handle_info({'EXIT', Pid, _}, State) ->
-  InWorker = State#state.in_worker,
+  InRequest = ets:lookup(State#state.in_requests, Pid),
+  ok = cleanup_and_reply(InRequest, State),
   RdWorker = State#state.rd_worker,
   case Pid of
-    InWorker ->
-      InClient = State#state.in_client,
-      InState = State#state{in_client = undefined, in_worker = undefined},
-      gen_server:reply(InClient, undefined),
-      {noreply, InState};
     RdWorker ->
       RdClient = State#state.rd_client,
       RdState = State#state{rd_client = undefined, rd_worker = undefined},
       gen_server:reply(RdClient, undefined),
-      {noreply, RdState}
+      {noreply, RdState};
+    _ ->
+      {noreply, State}
   end.
+
+cleanup_and_reply([], _State) ->
+  ok;
+
+cleanup_and_reply([{Worker, Client}], State) ->
+  ets:delete(State#state.in_requests, Worker),
+  gen_server:reply(Client, undefined),
+  ok.
 
 
 %%--------------------------------------------------------------------
