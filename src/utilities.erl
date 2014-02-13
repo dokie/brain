@@ -10,7 +10,7 @@
 -author("dokie").
 
 %% API
--export([pmap/2]).
+-export([pmap/2, key/1]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -35,3 +35,25 @@ gather_results([]) ->
 
 execute_and_report(Parent, F, Elem) ->
   Parent ! {self(), (catch F(Elem))}.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% A md5 has key generator as a string
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(key(T :: tuple()) -> string()).
+key(T) when is_tuple(T) ->
+  B = term_to_binary(T),
+  H = erlang:md5(B),
+  hexstring(H).
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Convert a Binary to a Hex String
+%%
+%% @end
+%%--------------------------------------------------------------------
+hexstring(<<X:128/big-unsigned-integer>>) ->
+  lists:flatten(io_lib:format("~32.16.0b", [X])).

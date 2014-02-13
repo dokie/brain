@@ -11,9 +11,15 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-simple_test() ->
+simple_pmap_test() ->
   L = lists:seq(1, 10),
   F = fun (Elem) -> Elem * 2 end,
   Expected = lists:map(F, L),
   Result = utilities:pmap(F, L),
   ?_assertEqual(Expected, Result).
+
+simple_hash_test() ->
+  Tuple = {"Yo", 1, 2.13},
+  Key = utilities:key(Tuple),
+  Expected = "746c8f9724290fa2afea25debeb1eebb",
+  ?_assertEqual(Expected, Key).

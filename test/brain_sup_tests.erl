@@ -15,8 +15,7 @@ brain_sup_setup() ->
   {ok, Pid} = brain_sup:start_link(),
   Pid.
 
-brain_sup_cleanup(Pid) ->
-  brain_sup:
+brain_sup_cleanup(_Pid) ->
   ok.
 
 brain_sup_fixture_test_() ->
