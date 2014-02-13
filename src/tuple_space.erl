@@ -27,7 +27,7 @@
 -define(SERVER, ?MODULE).
 -define(WAIT, 50).
 
--record(state, {tuples = [], in_requests, rd_client, rd_worker}).
+-record(state, {tuples = [], in_requests, rd_requests}).
 
 %%%===================================================================
 %%% API
@@ -166,7 +166,8 @@ state() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  {ok, #state{tuples = [], in_requests = ets:new(in_requests, [bag, named_table])}}.
+  {ok, #state{tuples = [], in_requests = ets:new(in_requests, [bag, named_table]),
+    rd_requests = ets:new(rd_requests, [bag, named_table])}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -199,11 +200,10 @@ handle_call({inp, Template}, _From, State) ->
   {reply, Reply, State};
 
 handle_call({rd, Template}, From, State) ->
-  NewState = State#state{rd_client = From},
   process_flag(trap_exit, true),
   Pid = spawn_link(?MODULE, do_rd, [Template, self()]),
-  NewState2 = NewState#state{rd_worker = Pid},
-  {noreply, NewState2};
+  ets:insert(State#state.in_requests, {Pid, From}),
+  {noreply, State};
 
 handle_call({rdp, Template}, _From, State) ->
   Reply = do_rdp(Template, State),
@@ -247,46 +247,53 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({From, done, in, Tuple}, State) ->
-  [{_, Client}] = ets:lookup(State#state.in_requests, From),
-  ets:delete(State#state.in_requests, From),
+
+handle_info({Worker, done, in, Tuple}, State) ->
+  Request = ets:lookup(State#state.in_requests, Worker),
   NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples)},
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  gen_server:reply(Client, Stripped),
+  cleanup_and_reply(in, Request, State, Stripped),
   {noreply, NewState};
 
-handle_info({_From, done, rd, Tuple}, State) ->
-  Client = State#state.rd_client,
-  NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), rd_client = undefined, rd_worker = undefined},
+handle_info({Worker, done, rd, Tuple}, State) ->
+  Request = ets:lookup(State#state.in_requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  gen_server:reply(Client, Stripped),
-  {noreply, NewState};
+  cleanup_and_reply(rd, Request, State, Stripped),
+  {noreply, State};
 
 handle_info({'EXIT', _Pid, normal}, State) ->
   {noreply, State};
 
 handle_info({'EXIT', Pid, _}, State) ->
   InRequest = ets:lookup(State#state.in_requests, Pid),
-  ok = cleanup_and_reply(InRequest, State),
-  RdWorker = State#state.rd_worker,
-  case Pid of
-    RdWorker ->
-      RdClient = State#state.rd_client,
-      RdState = State#state{rd_client = undefined, rd_worker = undefined},
-      gen_server:reply(RdClient, undefined),
-      {noreply, RdState};
-    _ ->
-      {noreply, State}
-  end.
+  ok = cleanup_and_reply(in, InRequest, State, undefined),
+  RdRequest = ets:lookup(State#state.rd_requests, Pid),
+  ok = cleanup_and_reply(rd, RdRequest, State, undefined),
+  {noreply, State}.
 
-cleanup_and_reply([], _State) ->
+cleanup_and_reply(_Mode, [], _State, _Reply) ->
+  cleanup(_Mode, [], _State);
+
+cleanup_and_reply(in, [{Worker, Client}], State, Reply) ->
+  cleanup(in, [{Worker, Client}], State),
+  gen_server:reply(Client, Reply),
   ok;
 
-cleanup_and_reply([{Worker, Client}], State) ->
-  ets:delete(State#state.in_requests, Worker),
-  gen_server:reply(Client, undefined),
+cleanup_and_reply(rd, [{Worker, Client}], State, Reply) ->
+  cleanup(rd, [{Worker, Client}], State),
+  gen_server:reply(Client, Reply),
   ok.
 
+cleanup(_Mode, [], _State) ->
+  ok;
+
+cleanup(in, [{Worker, _}], State) ->
+  ets:delete(State#state.in_requests, Worker),
+  ok;
+
+cleanup(rd, [{Worker, _}], State) ->
+  ets:delete(State#state.rd_requests, Worker),
+  ok.
 
 %%--------------------------------------------------------------------
 %% @private

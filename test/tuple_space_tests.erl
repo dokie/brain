@@ -159,9 +159,10 @@ tuple_space_rd_test_() ->
 exact_rd(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:rd({"Yo yo", 99, <<"BS">>, 1.23}),
+  Match = ?SERVER:rd(Tuple),
+  Second = ?SERVER:rdp(Tuple),
   [?_assertEqual(Tuple, Match),
-   ?_assertEqual(Tuple, Match)].
+   ?_assertEqual(Tuple, Second)].
 
 no_match_at_first_rd(_Pid) ->
   BadTuple = {"The Edge", 999, 3.14},
