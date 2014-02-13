@@ -349,7 +349,7 @@ do_out(Tuple, State) ->
 -spec do_in(Template :: term(), Server :: pid()) -> {ok, Tuple :: term()}.
 
 do_in(Template, Server) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(2, size(Template) + 1)]),
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   finder(in, MatchHead, Guard, Server, []).
@@ -403,7 +403,7 @@ do_inp(Template) when is_tuple(Template) ->
   do_match(Template).
 
 do_match(Template) when is_tuple(Template) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(2, size(Template) + 1)]),
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Matches = find_all_matches(MatchHead, Guard),
@@ -426,7 +426,7 @@ do_match(Template) when is_tuple(Template) ->
 -spec do_rd(Template :: term(), Server :: pid()) -> {ok, Tuple :: term()}.
 
 do_rd(Template, Server) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(2, size(Template) + 1)]),
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   finder(rd, MatchHead, Guard, Server, []).
