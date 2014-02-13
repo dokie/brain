@@ -10,7 +10,7 @@
 -author("dokie").
 
 %% API
--export([pmap/2, key/1]).
+-export([pmap/2, key/1, each_with_index/2]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -57,3 +57,8 @@ key(T) when is_tuple(T) ->
 %%--------------------------------------------------------------------
 hexstring(<<X:128/big-unsigned-integer>>) ->
   lists:flatten(io_lib:format("~32.16.0b", [X])).
+
+each_with_index(F, L) when is_function(F), is_list(L) ->
+  [
+    F(Elem, Index) || {Elem, Index} <- lists:zip(L, lists:seq(1, length(L)))
+  ].
