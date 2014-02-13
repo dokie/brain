@@ -251,13 +251,15 @@ handle_cast(_Request, State) ->
 handle_info({_From, done, in, Tuple}, State) ->
   Client = State#state.in_client,
   NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), in_client = undefined, in_worker = undefined},
-  gen_server:reply(Client, Tuple),
+  Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
+  gen_server:reply(Client, Stripped),
   {noreply, NewState};
 
 handle_info({_From, done, rd, Tuple}, State) ->
   Client = State#state.rd_client,
   NewState = State#state{tuples = lists:delete(Tuple, State#state.tuples), rd_client = undefined, rd_worker = undefined},
-  gen_server:reply(Client, Tuple),
+  Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
+  gen_server:reply(Client, Stripped),
   {noreply, NewState};
 
 handle_info({'EXIT', _Pid, normal}, State) ->
@@ -325,7 +327,10 @@ code_change(_OldVsn, State, _Extra) ->
       -> {ok, NewState :: #state{}}).
 
 do_out(Tuple, State) ->
-  NewState = State#state{tuples = [Tuple | State#state.tuples]},
+  %% Augment Tuple with UUID
+  Uuid = uuid:to_string(simple,uuid:uuid4()),
+  ToStore = list_to_tuple([Uuid] ++ tuple_to_list(Tuple)),
+  NewState = State#state{tuples = [ToStore | State#state.tuples]},
   {ok, NewState}.
 
 %%--------------------------------------------------------------------
@@ -340,7 +345,7 @@ do_out(Tuple, State) ->
 -spec do_in(Template :: term(), State :: #state{}) -> {ok, Tuple :: term()}.
 
 do_in(Template, State) ->
-  TemplateList = tuple_to_list(Template),
+  TemplateList = [any] ++ tuple_to_list(Template), %% Augment for the UUID
   TemplateFuns = funky(TemplateList),
   finder(in, TemplateFuns, State#state.server, []).
 
@@ -397,12 +402,16 @@ match(TemplateFuns = [TH|TT], TupleList = [H|T], Acc) ->
 -spec do_inp(Template :: term(), State :: #state{}) -> {ok, Tuple :: term() | undefined}.
 
 do_inp(Template, State) ->
-  TemplateList = tuple_to_list(Template),
+  do_match(Template, State).
+
+do_match(Template, State) ->
+  TemplateList = [any] ++ tuple_to_list(Template),
   TemplateFuns = funky(TemplateList),
   Matches = find_all_matches(TemplateFuns, State),
   case Matches of
     [] -> undefined;
-    [H|_] -> H
+    [H | _] ->
+      list_to_tuple(tl(tuple_to_list(H)))
   end.
 
 %%--------------------------------------------------------------------
@@ -418,7 +427,7 @@ do_inp(Template, State) ->
 -spec do_rd(Template :: term(), State :: #state{}) -> {ok, Tuple :: term()}.
 
 do_rd(Template, State) ->
-  TemplateList = tuple_to_list(Template),
+  TemplateList = [any] ++ tuple_to_list(Template), %% Augment for the UUID
   TemplateFuns = funky(TemplateList),
   finder(rd, TemplateFuns, State#state.server, []).
 
@@ -434,13 +443,7 @@ do_rd(Template, State) ->
 -spec do_rdp(Template :: term(), State :: #state{}) -> {ok, Tuple :: term() | undefined}.
 
 do_rdp(Template, State) ->
-  TemplateList = tuple_to_list(Template),
-  TemplateFuns = funky(TemplateList),
-  Matches = find_all_matches(TemplateFuns, State),
-  case Matches of
-    [] -> undefined;
-    [H|_] -> H
-  end.
+  do_match(Template, State).
 
 %%--------------------------------------------------------------------
 %% @private
