@@ -27,7 +27,7 @@
 -define(SERVER, ?MODULE).
 -define(WAIT, 50).
 
--record(state, {tuples = [], in_client, rd_client, in_worker, rd_worker, server}).
+-record(state, {tuples = [], in_client, rd_client, in_worker, rd_worker}).
 
 %%%===================================================================
 %%% API
@@ -166,7 +166,7 @@ state() ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  {ok, #state{tuples = [], server = self()}}.
+  {ok, #state{tuples = []}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -191,7 +191,7 @@ handle_call({out, Tuple}, _From, State) ->
 handle_call({in, Template}, From, State) ->
   NewState = State#state{in_client = From},
   process_flag(trap_exit, true),
-  Pid = spawn_link(?MODULE, do_in,[Template, NewState]),
+  Pid = spawn_link(?MODULE, do_in, [Template, self()]),
   NewState2 = NewState#state{in_worker = Pid},
   {noreply, NewState2};
 
@@ -202,7 +202,7 @@ handle_call({inp, Template}, _From, State) ->
 handle_call({rd, Template}, From, State) ->
   NewState = State#state{rd_client = From},
   process_flag(trap_exit, true),
-  Pid = spawn_link(?MODULE, do_rd,[Template, NewState]),
+  Pid = spawn_link(?MODULE, do_rd, [Template, self()]),
   NewState2 = NewState#state{rd_worker = Pid},
   {noreply, NewState2};
 
@@ -339,15 +339,15 @@ do_out(Tuple, State) ->
 %% Read a Tuple from the Tuplespace based upon a template
 %% This is a blocking call so we can pass a timeout value additionally.
 %%
-%% @spec do_in(Template, State) -> {ok, Tuple} | {noreply, Template, Timeout}
+%% @spec do_in(Template, Server) -> {ok, Tuple} | {noreply, Template, Timeout}
 %% @end
 %%--------------------------------------------------------------------
--spec do_in(Template :: term(), State :: #state{}) -> {ok, Tuple :: term()}.
+-spec do_in(Template :: term(), Server :: pid()) -> {ok, Tuple :: term()}.
 
-do_in(Template, State) ->
+do_in(Template, Server) ->
   TemplateList = [any] ++ tuple_to_list(Template), %% Augment for the UUID
   TemplateFuns = funky(TemplateList),
-  finder(in, TemplateFuns, State#state.server, []).
+  finder(in, TemplateFuns, Server, []).
 
 finder(Mode, TFuns, Server, []) ->
   NewState = ?MODULE:state(),
@@ -421,15 +421,15 @@ do_match(Template, State) ->
 %% in the Tuplespace
 %% This is a blocking call so we can pass a timeout value additionally.
 %%
-%% @spec do_rd(Template, State) -> {ok, Tuple} | {noreply, Template, Timeout}
+%% @spec do_rd(Template, Server) -> {ok, Tuple} | {noreply, Template, Timeout}
 %% @end
 %%--------------------------------------------------------------------
--spec do_rd(Template :: term(), State :: #state{}) -> {ok, Tuple :: term()}.
+-spec do_rd(Template :: term(), Server :: pid()) -> {ok, Tuple :: term()}.
 
-do_rd(Template, State) ->
+do_rd(Template, Server) ->
   TemplateList = [any] ++ tuple_to_list(Template), %% Augment for the UUID
   TemplateFuns = funky(TemplateList),
-  finder(rd, TemplateFuns, State#state.server, []).
+  finder(rd, TemplateFuns, Server, []).
 
 %%--------------------------------------------------------------------
 %% @private
