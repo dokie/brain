@@ -9,8 +9,6 @@
 -module(tuple_space).
 -author("mike").
 
--include_lib("stdlib/include/ms_transform.hrl").
-
 -behaviour(gen_server).
 
 %% API
@@ -352,41 +350,93 @@ do_in(Template, Server) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  finder(in, MatchHead, Guard, Server, []).
+  selector(in, [any] ++ TemplateList, MatchHead, Guard, Server, []).
 
-finder(Mode, MatchHead, Guard, Server, []) ->
-  Matches = find_all_matches(MatchHead, Guard),
+selector(Mode, TemplateList, MatchHead, Guard, Server, []) ->
+  Selections = find_all_selections(MatchHead, Guard),
+  %% Second pass to deal with string and functions
+  TemplateFuns = funky(TemplateList),
+  Matches = find_all_matches(TemplateFuns, Selections),
   timer:sleep(?WAIT),
-  finder(Mode, MatchHead, Guard, Server, Matches);
+  selector(Mode, TemplateList, MatchHead, Guard, Server, Matches);
 
-finder(Mode, _MatchHead, _Guard, Server, [H|_]) ->
+selector(Mode, _TemplateList, _MatchHead, _Guard, Server, [H|_]) ->
   Server ! {self(), done, Mode, list_to_tuple(H)}.
 
-find_all_matches(MatchHead, Guard) ->
+find_all_selections(MatchHead, Guard) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],
   ets:select(tuples, MatchSpec).
 
 make_guard(TemplateList) ->
-  Mapper = fun (E, I) -> match_spec(E, I + 1) end,
-  utilities:each_with_index(Mapper, TemplateList).
+  Mapper = fun (E, I) -> guard(E, I + 1) end,
+  BareGuard = utilities:each_with_index(Mapper, TemplateList),
+  Stripper = fun (Elem) -> Elem /= {} end,
+  lists:filter(Stripper, BareGuard).
 
-match_spec(Elem, Index) when integer =:= Elem, is_integer(Index) ->
+guard(Elem, Index) when integer =:= Elem, is_integer(Index) ->
   {is_integer, list_to_atom("$" ++ integer_to_list(Index))};
 
-match_spec(Elem, Index) when int =:= Elem, is_integer(Index) ->
+guard(Elem, Index) when int =:= Elem, is_integer(Index) ->
   {is_integer, list_to_atom("$" ++ integer_to_list(Index))};
 
-match_spec(Elem, Index) when atom =:= Elem, is_integer(Index) ->
+guard(Elem, Index) when atom =:= Elem, is_integer(Index) ->
   {is_atom, list_to_atom("$" ++ integer_to_list(Index))};
 
-match_spec(Elem, Index) when float =:= Elem, is_integer(Index) ->
+guard(Elem, Index) when float =:= Elem, is_integer(Index) ->
   {is_float, list_to_atom("$" ++ integer_to_list(Index))};
 
-match_spec(Elem, Index) when binary =:= Elem, is_integer(Index) ->
+guard(Elem, Index) when binary =:= Elem, is_integer(Index) ->
   {is_binary, list_to_atom("$" ++ integer_to_list(Index))};
 
-match_spec(Elem, Index) when is_integer(Index) ->
+guard(Elem, Index) when any =:= Elem, is_integer(Index) ->
+  {};
+
+guard(Elem, Index) when string =:= Elem, is_integer(Index) ->
+  {};
+
+guard(Elem, Index) when is_function(Elem, 1), is_integer(Index) ->
+  {};
+
+guard(Elem, Index) when is_integer(Index) ->
   {'==', list_to_atom("$" ++ integer_to_list(Index)), Elem}.
+
+find_all_matches([], _TupleList) ->
+  [];
+
+find_all_matches(_FunsList, []) ->
+  [];
+
+find_all_matches(FunsList, TupleList) when is_list(FunsList), is_list(TupleList) ->
+  Found = true,
+  Bail = fun(Tuple) -> match(FunsList, Tuple, Found) end,
+  Matches = lists:takewhile(Bail, TupleList),
+  Matches.
+
+mapper(Elem) when is_function(Elem, 1) -> Elem;
+mapper(Elem) when integer =:= Elem -> fun (I) -> is_integer(I) end;
+mapper(Elem) when int =:= Elem -> fun (I) -> is_integer(I) end;
+mapper(Elem) when string =:= Elem -> fun (S) -> io_lib:printable_list(S) end;
+mapper(Elem) when float =:= Elem -> fun (F) -> is_float(F) end;
+mapper(Elem) when binary =:= Elem -> fun (B) -> is_binary(B) end;
+mapper(Elem) when atom =:= Elem -> fun (A) -> is_atom(A) end;
+mapper(Elem) when any =:= Elem -> fun (_A) -> true end;
+mapper(Elem) -> fun (S) -> S =:= Elem end.
+
+funky(TemplateList) ->
+  Mapper = fun (E) -> mapper(E) end,
+  lists:map(Mapper, TemplateList).
+
+match([], [], Acc) ->
+  Acc;
+
+match(TemplateFuns = [TH|TT], TupleList = [H|T], Acc) ->
+  case length(TemplateFuns) == length(TupleList) of
+    true ->
+      Matched = Acc and TH(H),
+      match(TT, T, Matched);
+    false ->
+      Acc and false
+  end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -406,7 +456,10 @@ do_match(Template) when is_tuple(Template) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  Matches = find_all_matches(MatchHead, Guard),
+  Selections = find_all_selections(MatchHead, Guard),
+  %% Second pass to deal with string and functions
+  TemplateFuns = funky([any] ++ TemplateList),
+  Matches = find_all_matches(TemplateFuns, Selections),
   case Matches of
     [] -> undefined;
     [H | _] ->
@@ -429,7 +482,7 @@ do_rd(Template, Server) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  finder(rd, MatchHead, Guard, Server, []).
+  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Server, []).
 
 %%--------------------------------------------------------------------
 %% @private
