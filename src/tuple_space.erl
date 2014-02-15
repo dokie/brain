@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2, rdp/1, eval/1]).
+-export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2, rdp/1, eval/1, count/1]).
 -export([do_in/2, do_rd/2, state/0]).
 
 %% gen_server callbacks
@@ -69,7 +69,7 @@ out(Tuple) when is_tuple(Tuple) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Gets a Tuple from the Tuplespace that matches a Template
-%% and remmoves it. This is a Blocking Call
+%% and removes it. This is a Blocking Call
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -147,6 +147,17 @@ eval(Specification) when is_tuple(Specification) ->
 state() ->
   gen_server:call(?SERVER, get_state).
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Counts the number of Tuples int the Tuplespace that match a Template
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(count(Template :: tuple()) -> {number()} | {noreply, term(), timeout()}).
+
+count(Template) when is_tuple(Template) ->
+  gen_server:call(?SERVER, {count, Template}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -215,6 +226,10 @@ handle_call({eval, Specification}, _From, State) ->
 
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
+
+handle_call({count, Template}, _From, State) ->
+  Reply = do_count(Template),
+  {reply, Reply, State};
 
 handle_call(get_state, _From, State) ->
   {reply, State, State}.
@@ -519,3 +534,23 @@ do_eval(Specification, State) when is_tuple(Specification) ->
   L = tuple_to_list(Specification),
   Tuple = list_to_tuple(utilities:pmap(F, L)),
   do_out(Tuple, State).
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Counts the number of Tuples int the Tuplespace that match a Template
+%%
+%% @spec do_count(Template) -> Count
+%% @end
+%%--------------------------------------------------------------------
+-spec do_count(Template :: tuple()) -> number().
+
+do_count(Template) ->
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  TemplateList = tuple_to_list(Template),
+  Guard = make_guard(TemplateList),
+  Selections = find_all_selections(MatchHead, Guard),
+  %% Second pass to deal with string and functions
+  TemplateFuns = funky([any] ++ TemplateList),
+  Matches = find_all_matches(TemplateFuns, Selections),
+  length(Matches).

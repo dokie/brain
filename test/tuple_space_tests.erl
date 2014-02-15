@@ -263,10 +263,39 @@ no_match_rdp(_Pid) ->
 
 tuple_space_eval_test_() ->
   [{"Test of simple eval",
-   ?setup(fun simple_eval/1)}].
+   ?setup(fun simple_eval/1)},
+   {"Test of coupled eval",
+   ?setup(fun coupled_eval/1)}].
 
 simple_eval(_Pid) ->
   Generator = {"roots", fun() -> math:sqrt(4) end, fun () -> math:sqrt(9) end },
   ok = ?SERVER:eval(Generator),
   Match = ?SERVER:rdp({"roots", float, float}),
   [?_assertEqual({"roots", 2.0, 3.0}, Match)].
+
+coupled_eval(_Pid) ->
+  Expected = [{"worker", "done"} || I <- lists:seq(1,10)],
+  Generator = fun (I) -> ?SERVER:eval({"worker", fun() -> io:format("Hello ~w~n", [I]), "done" end}) end,
+  utilities:pmap(Generator, lists:seq(1,10)),
+  Match = utilities:pmap(fun (E) -> ?SERVER:in({string, "done"}) end, lists:seq(1,10)),
+  [?_assertEqual(Expected, Match)].
+
+tuple_space_count_test_() ->
+  [{"Test of simple count",
+   ?setup(fun simple_count/1)},
+   {"Test of complex count",
+   ?setup(fun complex_count/1)}].
+
+simple_count(_Pid) ->
+  ok = ?SERVER:out({"Hello", "World"}),
+  Number = ?SERVER:count({string, string}),
+  [?_assertEqual(1, Number)].
+
+complex_count(_Pid) ->
+  Expected = 10,
+  Generator = fun (I) -> ?SERVER:eval({"worker",
+    fun() -> io:format("Hello ~w~n", [I]), "done" end,
+    fun() -> I end}) end,
+  utilities:pmap(Generator, lists:seq(1,10)),
+  Count = ?SERVER:count({string, "done", int}),
+  [?_assertEqual(Expected, Count)].
