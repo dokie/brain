@@ -82,7 +82,7 @@ match_third_float_in(_Pid) ->
   [?_assertEqual(Tuple, Match)].
 
 tuple_space_in_timeout_test_() -> {
-  timeout, 5,
+  timeout, 10,
   [{"Test of in with no exact match",
    ?setup(fun no_match_inexact_in/1)},
    {"Test of in with no exact match at first but appears later",
@@ -98,7 +98,7 @@ no_match_at_first_in(_Pid) ->
   GoodTuple = {"The Edge", 999, 2.17},
   ok = ?SERVER:out(BadTuple),
   spawn(fun () ->
-    timer:sleep(1000),
+    timer:sleep(500),
     ?SERVER:out(GoodTuple)
     end),
   Match = ?SERVER:in({"The Edge", 999, 2.17}, 1500),
@@ -169,7 +169,7 @@ no_match_at_first_rd(_Pid) ->
   GoodTuple = {"The Edge", 999, 2.17},
   ok = ?SERVER:out(BadTuple),
   spawn(fun () ->
-    timer:sleep(1000),
+    timer:sleep(500),
     ?SERVER:out(GoodTuple)
   end),
   Match = ?SERVER:rd({"The Edge", 999, 2.17}, 1500),
