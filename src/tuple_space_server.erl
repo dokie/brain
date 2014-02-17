@@ -216,10 +216,7 @@ handle_call(stop, _From, State) ->
 
 handle_call({count, Template}, _From, State) ->
   Reply = tuple_space:count(Template),
-  {reply, Reply, State};
-
-handle_call(get_state, _From, State) ->
-  {reply, State, State}.
+  {reply, Reply, State}.
 
 %%--------------------------------------------------------------------
 %% @private

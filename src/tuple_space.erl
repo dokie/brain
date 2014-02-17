@@ -38,10 +38,10 @@ out(Tuple) ->
 %% Read a Tuple from the Tuplespace based upon a template
 %% This is a blocking call so we can pass a timeout value additionally.
 %%
-%% @spec in(Template, Caller) -> {ok, Tuple} | {noreply, Template, Timeout}
+%% @spec in(Template, Caller) -> done.
 %% @end
 %%--------------------------------------------------------------------
--spec in(Template :: term(), Caller :: pid()) -> {ok, Tuple :: term()}.
+-spec in(Template :: tuple(), Caller :: pid()) -> done.
 
 in(Template, Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
@@ -82,10 +82,10 @@ match(Template) when is_tuple(Template) ->
 %% in the Tuplespace
 %% This is a blocking call so we can pass a timeout value additionally.
 %%
-%% @spec rd(Template, Caller) -> {ok, Tuple} | {noreply, Template, Timeout}
+%% @spec rd(Template, Caller) -> done.
 %% @end
 %%--------------------------------------------------------------------
--spec rd(Template :: term(), Caller :: pid()) -> {ok, Tuple :: term()}.
+-spec rd(Template :: tuple(), Caller :: pid()) -> done.
 
 rd(Template, Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
@@ -101,7 +101,7 @@ rd(Template, Caller) ->
 %% @spec rdp(Template) -> {ok, Tuple} | {ok, undefined}
 %% @end
 %%--------------------------------------------------------------------
--spec rdp(Template :: term()) -> {ok, Tuple :: term() | undefined}.
+-spec rdp(Template :: term()) -> {ok, Tuple :: tuple() | undefined}.
 
 rdp(Template) ->
   match(Template).
@@ -125,7 +125,8 @@ eval(Specification) when is_tuple(Specification) ->
   end,
   L = tuple_to_list(Specification),
   Tuple = list_to_tuple(utilities:pmap(F, L)),
-  out(Tuple).
+  ok = out(Tuple),
+  ok.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -157,7 +158,8 @@ selector(Mode, TemplateList, MatchHead, Guard, Server, []) ->
   selector(Mode, TemplateList, MatchHead, Guard, Server, Matches);
 
 selector(Mode, _TemplateList, _MatchHead, _Guard, Server, [H|_]) ->
-  Server ! {self(), done, Mode, list_to_tuple(H)}.
+  Server ! {self(), done, Mode, list_to_tuple(H)},
+  done.
 
 find_all_selections(MatchHead, Guard) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],
@@ -196,8 +198,8 @@ guard(Elem, Index) when is_function(Elem, 1), is_integer(Index) ->
 guard(Elem, Index) when is_integer(Index) ->
   {'==', list_to_atom("$" ++ integer_to_list(Index)), Elem}.
 
-find_all_matches([], _TupleList) ->
-  [];
+%%find_all_matches([], _TupleList) ->
+%%  [];
 
 find_all_matches(_FunsList, []) ->
   [];

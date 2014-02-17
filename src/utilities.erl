@@ -18,7 +18,7 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(pmap(F :: fun(() -> any()), L :: list()) -> list()).
+-spec(pmap(F :: fun((E :: any()) -> any()), L :: list()) -> list()).
 
 pmap(F, L) when is_function(F), is_list(L) ->
   S = self(),

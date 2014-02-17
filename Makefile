@@ -24,7 +24,7 @@ get-deps:
 	@$(REBAR) get-deps
 
 .dialyzer_plt:
-	@$(DIALYZER) --build_plt --output_plt .dialyzer_plt --apps kernel stdlib
+	@$(DIALYZER) --build_plt --output_plt .dialyzer_plt --apps kernel stdlib crypto mnesia sasl ssl reltool
 
 build-plt: .dialyzer_plt
 
