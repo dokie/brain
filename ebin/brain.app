@@ -5,5 +5,5 @@
               {applications,[kernel,stdlib]},
               {mod,{brain_app,[]}},
               {env,[]},
-              {modules,[brain_app,brain_sup,tuple_space,tuple_space_server,
-                        utilities]}]}.
+              {modules,[brain_app,brain_sup,reactor,tuple_space,
+                        tuple_space_server,utilities]}]}.
