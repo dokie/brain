@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 28. Jan 2014 10:14
 %%%-------------------------------------------------------------------
--module(tuple_space_tests).
+-module(tuple_space_server_tests).
 -author("mike").
 
 -include_lib("eunit/include/eunit.hrl").
@@ -274,10 +274,10 @@ simple_eval(_Pid) ->
   [?_assertEqual({"roots", 2.0, 3.0}, Match)].
 
 coupled_eval(_Pid) ->
-  Expected = [{"worker", "done"} || I <- lists:seq(1,10)],
+  Expected = [{"worker", "done"} || _I <- lists:seq(1,10)],
   Generator = fun (I) -> ?SERVER:eval({"worker", fun() -> io:format("Hello ~w~n", [I]), "done" end}) end,
   utilities:pmap(Generator, lists:seq(1,10)),
-  Match = utilities:pmap(fun (E) -> ?SERVER:in({string, "done"}) end, lists:seq(1,10)),
+  Match = utilities:pmap(fun (_E) -> ?SERVER:in({string, "done"}) end, lists:seq(1,10)),
   [?_assertEqual(Expected, Match)].
 
 tuple_space_count_test_() ->

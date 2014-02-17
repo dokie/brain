@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 28. Jan 2014 15:04
 %%%-------------------------------------------------------------------
--module(tuple_space).
+-module(tuple_space_server).
 -author("mike").
 
 -behaviour(gen_server).
