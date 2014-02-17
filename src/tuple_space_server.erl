@@ -14,7 +14,6 @@
 %% API
 -export([start_link/0]).
 -export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2, rdp/1, eval/1, count/1]).
--export([do_in/2, do_rd/2, state/0]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -25,9 +24,8 @@
   code_change/3]).
 
 -define(SERVER, ?MODULE).
--define(WAIT, 50).
 
--record(state, {tuples, requests}).
+-record(tuplespace, {tuples, requests}).
 
 %%%===================================================================
 %%% API
@@ -138,17 +136,6 @@ eval(Specification) when is_tuple(Specification) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Gets the Server State
-%%
-%% @end
-%%--------------------------------------------------------------------
--spec(state() -> {term(), tuple()} | {noreply, term(), timeout()}).
-
-state() ->
-  gen_server:call(?SERVER, get_state).
-
-%%--------------------------------------------------------------------
-%% @doc
 %% Counts the number of Tuples int the Tuplespace that match a Template
 %%
 %% @end
@@ -174,10 +161,10 @@ count(Template) when is_tuple(Template) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(init(Args :: term()) ->
-  {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
+  {ok, State :: #tuplespace{}} | {ok, State :: #tuplespace{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  {ok, #state{tuples = ets:new(tuples, [bag, named_table]),
+  {ok, #tuplespace{tuples = ets:new(tuples, [bag, named_table]),
               requests = ets:new(requests, [bag, named_table])}}.
 
 %%--------------------------------------------------------------------
@@ -188,47 +175,47 @@ init([]) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
-    State :: #state{}) ->
-  {reply, Reply :: term(), NewState :: #state{}} |
-  {reply, Reply :: term(), NewState :: #state{}, timeout() | hibernate} |
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
-  {stop, Reason :: term(), NewState :: #state{}}).
+    State :: #tuplespace{}) ->
+  {reply, Reply :: term(), NewState :: #tuplespace{}} |
+  {reply, Reply :: term(), NewState :: #tuplespace{}, timeout() | hibernate} |
+  {noreply, NewState :: #tuplespace{}} |
+  {noreply, NewState :: #tuplespace{}, timeout() | hibernate} |
+  {stop, Reason :: term(), Reply :: term(), NewState :: #tuplespace{}} |
+  {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
 handle_call({out, Tuple}, _From, State) ->
-  {Reply, NewState} = do_out(Tuple, State),
-  {reply, Reply, NewState};
+  Reply = tuple_space:out(Tuple),
+  {reply, Reply, State};
 
 handle_call({in, Template}, From, State) ->
   process_flag(trap_exit, true),
-  Pid = spawn_link(?MODULE, do_in, [Template, self()]),
+  Pid = spawn_link(tuple_space, in, [Template, self()]),
   ets:insert(requests, {Pid, From}),
   {noreply, State};
 
 handle_call({inp, Template}, _From, State) ->
-  Reply = do_inp(Template),
+  Reply = tuple_space:inp(Template),
   {reply, Reply, State};
 
 handle_call({rd, Template}, From, State) ->
   process_flag(trap_exit, true),
-  Pid = spawn_link(?MODULE, do_rd, [Template, self()]),
+  Pid = spawn_link(tuple_space, rd, [Template, self()]),
   ets:insert(requests, {Pid, From}),
   {noreply, State};
 
 handle_call({rdp, Template}, _From, State) ->
-  Reply = do_rdp(Template),
+  Reply = tuple_space:rdp(Template),
   {reply, Reply, State};
 
 handle_call({eval, Specification}, _From, State) ->
-  {Reply, NewState} = do_eval(Specification, State),
-  {reply, Reply, NewState};
+  Reply = tuple_space:eval(Specification),
+  {reply, Reply, State};
 
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
 
 handle_call({count, Template}, _From, State) ->
-  Reply = do_count(Template),
+  Reply = tuple_space:count(Template),
   {reply, Reply, State};
 
 handle_call(get_state, _From, State) ->
@@ -241,10 +228,10 @@ handle_call(get_state, _From, State) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(handle_cast(Request :: term(), State :: #state{}) ->
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), NewState :: #state{}}).
+-spec(handle_cast(Request :: term(), State :: #tuplespace{}) ->
+  {noreply, NewState :: #tuplespace{}} |
+  {noreply, NewState :: #tuplespace{}, timeout() | hibernate} |
+  {stop, Reason :: term(), NewState :: #tuplespace{}}).
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -258,10 +245,10 @@ handle_cast(_Request, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
--spec(handle_info(Info :: timeout() | term(), State :: #state{}) ->
-  {noreply, NewState :: #state{}} |
-  {noreply, NewState :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term(), NewState :: #state{}}).
+-spec(handle_info(Info :: timeout() | term(), State :: #tuplespace{}) ->
+  {noreply, NewState :: #tuplespace{}} |
+  {noreply, NewState :: #tuplespace{}, timeout() | hibernate} |
+  {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
 handle_info({Worker, done, in, Tuple}, State) ->
   Request = ets:lookup(requests, Worker),
@@ -311,7 +298,7 @@ cleanup_request([{Worker, _}], _State) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
-    State :: #state{}) -> term()).
+    State :: #tuplespace{}) -> term()).
 terminate(_Reason, _State) ->
   ok.
 
@@ -323,234 +310,8 @@ terminate(_Reason, _State) ->
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
--spec(code_change(OldVsn :: term() | {down, term()}, State :: #state{},
+-spec(code_change(OldVsn :: term() | {down, term()}, State :: #tuplespace{},
     Extra :: term()) ->
-  {ok, NewState :: #state{}} | {error, Reason :: term()}).
+  {ok, NewState :: #tuplespace{}} | {error, Reason :: term()}).
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
-
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Add a Tuple into the Tuplespace
-%%
-%% @spec do_out(Tuple) -> {ok, NewState}
-%% @end
-%%--------------------------------------------------------------------
--spec(do_out(Tuple :: term(), State :: #state{})
-      -> {ok, NewState :: #state{}}).
-
-do_out(Tuple, State) ->
-  %% Augment Tuple with UUID
-  Uuid = uuid:to_string(simple,uuid:uuid4()),
-  ToStore = list_to_tuple([Uuid] ++ tuple_to_list(Tuple)),
-  ets:insert(tuples, ToStore),
-  {ok, State}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Read a Tuple from the Tuplespace based upon a template
-%% This is a blocking call so we can pass a timeout value additionally.
-%%
-%% @spec do_in(Template, Server) -> {ok, Tuple} | {noreply, Template, Timeout}
-%% @end
-%%--------------------------------------------------------------------
--spec do_in(Template :: term(), Server :: pid()) -> {ok, Tuple :: term()}.
-
-do_in(Template, Server) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
-  TemplateList = tuple_to_list(Template),
-  Guard = make_guard(TemplateList),
-  selector(in, [any] ++ TemplateList, MatchHead, Guard, Server, []).
-
-selector(Mode, TemplateList, MatchHead, Guard, Server, []) ->
-  Selections = find_all_selections(MatchHead, Guard),
-  %% Second pass to deal with string and functions
-  TemplateFuns = funky(TemplateList),
-  Matches = find_all_matches(TemplateFuns, Selections),
-  timer:sleep(?WAIT),
-  selector(Mode, TemplateList, MatchHead, Guard, Server, Matches);
-
-selector(Mode, _TemplateList, _MatchHead, _Guard, Server, [H|_]) ->
-  Server ! {self(), done, Mode, list_to_tuple(H)}.
-
-find_all_selections(MatchHead, Guard) ->
-  MatchSpec = [{MatchHead, Guard, ['$$']}],
-  ets:select(tuples, MatchSpec).
-
-make_guard(TemplateList) ->
-  Mapper = fun (E, I) -> guard(E, I + 1) end,
-  BareGuard = utilities:each_with_index(Mapper, TemplateList),
-  Stripper = fun (Elem) -> Elem /= {} end,
-  lists:filter(Stripper, BareGuard).
-
-guard(Elem, Index) when integer =:= Elem, is_integer(Index) ->
-  {is_integer, list_to_atom("$" ++ integer_to_list(Index))};
-
-guard(Elem, Index) when int =:= Elem, is_integer(Index) ->
-  {is_integer, list_to_atom("$" ++ integer_to_list(Index))};
-
-guard(Elem, Index) when atom =:= Elem, is_integer(Index) ->
-  {is_atom, list_to_atom("$" ++ integer_to_list(Index))};
-
-guard(Elem, Index) when float =:= Elem, is_integer(Index) ->
-  {is_float, list_to_atom("$" ++ integer_to_list(Index))};
-
-guard(Elem, Index) when binary =:= Elem, is_integer(Index) ->
-  {is_binary, list_to_atom("$" ++ integer_to_list(Index))};
-
-guard(Elem, Index) when any =:= Elem, is_integer(Index) ->
-  {};
-
-guard(Elem, Index) when string =:= Elem, is_integer(Index) ->
-  {};
-
-guard(Elem, Index) when is_function(Elem, 1), is_integer(Index) ->
-  {};
-
-guard(Elem, Index) when is_integer(Index) ->
-  {'==', list_to_atom("$" ++ integer_to_list(Index)), Elem}.
-
-find_all_matches([], _TupleList) ->
-  [];
-
-find_all_matches(_FunsList, []) ->
-  [];
-
-find_all_matches(FunsList, TupleList) when is_list(FunsList), is_list(TupleList) ->
-  Found = true,
-  Bail = fun(Tuple) -> match(FunsList, Tuple, Found) end,
-  Matches = lists:takewhile(Bail, TupleList),
-  Matches.
-
-mapper(Elem) when is_function(Elem, 1) -> Elem;
-mapper(Elem) when integer =:= Elem -> fun (I) -> is_integer(I) end;
-mapper(Elem) when int =:= Elem -> fun (I) -> is_integer(I) end;
-mapper(Elem) when string =:= Elem -> fun (S) -> io_lib:printable_list(S) end;
-mapper(Elem) when float =:= Elem -> fun (F) -> is_float(F) end;
-mapper(Elem) when binary =:= Elem -> fun (B) -> is_binary(B) end;
-mapper(Elem) when atom =:= Elem -> fun (A) -> is_atom(A) end;
-mapper(Elem) when any =:= Elem -> fun (_A) -> true end;
-mapper(Elem) -> fun (S) -> S =:= Elem end.
-
-funky(TemplateList) ->
-  Mapper = fun (E) -> mapper(E) end,
-  lists:map(Mapper, TemplateList).
-
-match([], [], Acc) ->
-  Acc;
-
-match(TemplateFuns = [TH|TT], TupleList = [H|T], Acc) ->
-  case length(TemplateFuns) == length(TupleList) of
-    true ->
-      Matched = Acc and TH(H),
-      match(TT, T, Matched);
-    false ->
-      Acc and false
-  end.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Get a Tuple from the Tuplespace based upon a template
-%% This is a non-blocking call so will return undefined if no match.
-%%
-%% @spec do_inp(Template) -> {ok, Tuple} | {ok, undefined}
-%% @end
-%%--------------------------------------------------------------------
--spec do_inp(Template :: tuple()) -> {ok, Tuple :: tuple() | undefined}.
-
-do_inp(Template) when is_tuple(Template) ->
-  do_match(Template).
-
-do_match(Template) when is_tuple(Template) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
-  TemplateList = tuple_to_list(Template),
-  Guard = make_guard(TemplateList),
-  Selections = find_all_selections(MatchHead, Guard),
-  %% Second pass to deal with string and functions
-  TemplateFuns = funky([any] ++ TemplateList),
-  Matches = find_all_matches(TemplateFuns, Selections),
-  case Matches of
-    [] -> undefined;
-    [H | _] ->
-      list_to_tuple(tl(H))
-  end.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Read a Tuple from the Tuplespace based upon a template but leave it
-%% in the Tuplespace
-%% This is a blocking call so we can pass a timeout value additionally.
-%%
-%% @spec do_rd(Template, Server) -> {ok, Tuple} | {noreply, Template, Timeout}
-%% @end
-%%--------------------------------------------------------------------
--spec do_rd(Template :: term(), Server :: pid()) -> {ok, Tuple :: term()}.
-
-do_rd(Template, Server) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
-  TemplateList = tuple_to_list(Template),
-  Guard = make_guard(TemplateList),
-  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Server, []).
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Read a Tuple from the Tuplespace based upon a template
-%% This is a non-blocking call so will return undefined if no match.
-%%
-%% @spec do_rdp(Template) -> {ok, Tuple} | {ok, undefined}
-%% @end
-%%--------------------------------------------------------------------
--spec do_rdp(Template :: term()) -> {ok, Tuple :: term() | undefined}.
-
-do_rdp(Template) ->
-  do_match(Template).
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Execute a Specification of a Tuple and when executed in parallel
-%% add the Tuple to the tuplespace
-%%
-%% @spec do_eval(Specification, State) -> ok
-%% @end
-%%--------------------------------------------------------------------
--spec do_eval(Specification :: tuple(), State :: #state{}) -> {ok, NewState :: #state{}}.
-
-do_eval(Specification, State) when is_tuple(Specification) ->
-  F = fun
-    (E) when is_function(E, 0) ->
-      E();
-    (E) ->
-      E
-  end,
-  L = tuple_to_list(Specification),
-  Tuple = list_to_tuple(utilities:pmap(F, L)),
-  do_out(Tuple, State).
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Counts the number of Tuples int the Tuplespace that match a Template
-%%
-%% @spec do_count(Template) -> Count
-%% @end
-%%--------------------------------------------------------------------
--spec do_count(Template :: tuple()) -> number().
-
-do_count(Template) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
-  TemplateList = tuple_to_list(Template),
-  Guard = make_guard(TemplateList),
-  Selections = find_all_selections(MatchHead, Guard),
-  %% Second pass to deal with string and functions
-  TemplateFuns = funky([any] ++ TemplateList),
-  Matches = find_all_matches(TemplateFuns, Selections),
-  length(Matches).

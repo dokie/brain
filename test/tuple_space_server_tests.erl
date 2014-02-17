@@ -11,7 +11,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(SERVER, tuple_space).
+-define(SERVER, tuple_space_server).
 
 -define(setup(F), {setup, fun tuple_space_setup/0, fun tuple_space_cleanup/1, F}).
 
