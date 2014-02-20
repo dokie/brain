@@ -60,9 +60,9 @@ in(Template, Caller) ->
 -spec inp(Template :: tuple()) -> {ok, Tuple :: tuple() | undefined}.
 
 inp(Template) when is_tuple(Template) ->
-  match(Template).
+  locate(inp, Template).
 
-match(Template) when is_tuple(Template) ->
+locate(Mode, Template) when is_tuple(Template) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
@@ -73,6 +73,11 @@ match(Template) when is_tuple(Template) ->
   case Matches of
     [] -> undefined;
     [H | _] ->
+      case Mode of
+        inp ->
+          ets:delete(tuples, element(1, H));
+        _ -> ok
+      end,
       list_to_tuple(tl(H))
   end.
 
@@ -104,7 +109,7 @@ rd(Template, Caller) ->
 -spec rdp(Template :: term()) -> {ok, Tuple :: tuple() | undefined}.
 
 rdp(Template) ->
-  match(Template).
+  locate(rdp, Template).
 
 %%--------------------------------------------------------------------
 %% @doc
