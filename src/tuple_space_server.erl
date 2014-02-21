@@ -297,6 +297,8 @@ cleanup_request([{Worker, _}], _State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #tuplespace{}) -> term()).
 terminate(_Reason, _State) ->
+  ets:delete(requests),
+  ets:delete(tuples),
   ok.
 
 %%--------------------------------------------------------------------

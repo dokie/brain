@@ -9,18 +9,11 @@
 -module(reactor).
 -author("dokie").
 
-%% API
--export([react_once/0]).
+%% Behaviour
+-callback init(Options :: list(term())) -> ok | tuple(error, Reason :: string()).
 
--define(CATALYST, {"input", float}).
+-callback reactants() -> Templates :: list(tuple()).
 
-react_once() ->
-  {"input", X} = tuple_space_server:in(?CATALYST),
-  %% React
-  Product = reaction(X),
-  ok = tuple_space_server:out({"input", Product}),
-  ok.
+-callback reaction(Reactants :: list(tuple())) -> Products :: list(tuple()) | tuple(error, Reason :: string()).
 
-reaction(Y) when is_float(Y) ->
-  Y * 2.0.
 
