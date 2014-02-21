@@ -129,8 +129,10 @@ tuple_space_inp_test_() ->
 exact_inp(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:inp({"Yo yo", 99, <<"BS">>, 1.23}),
-  [?_assertEqual(Tuple, Match)].
+  Match = ?SERVER:inp(Tuple),
+  Second = ?SERVER:inp(Tuple),
+  [?_assertEqual(Tuple, Match),
+    ?_assertEqual(undefined, Second)].
 
 match_second_int_inp(_Pid) ->
   Tuple = {"Yo yo", 42, 3.14},

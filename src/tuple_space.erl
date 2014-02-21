@@ -75,7 +75,7 @@ locate(Mode, Template) when is_tuple(Template) ->
     [H | _] ->
       case Mode of
         inp ->
-          ets:delete(tuples, element(1, H));
+          ets:delete(tuples, element(1, list_to_tuple(H)));
         _ -> ok
       end,
       list_to_tuple(tl(H))
