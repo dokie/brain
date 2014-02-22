@@ -132,7 +132,7 @@ exact_inp(_Pid) ->
   Match = ?SERVER:inp(Tuple),
   Second = ?SERVER:inp(Tuple),
   [?_assertEqual(Tuple, Match),
-    ?_assertEqual(undefined, Second)].
+   ?_assertEqual(undefined, Second)].
 
 match_second_int_inp(_Pid) ->
   Tuple = {"Yo yo", 42, 3.14},
