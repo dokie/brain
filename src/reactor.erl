@@ -14,6 +14,6 @@
 
 -callback reactants() -> Templates :: list(tuple()).
 
--callback reaction(Reactants :: list(tuple())) -> Products :: list(tuple()) | tuple(error, Reason :: string()).
+-callback react(Reactants :: list(tuple())) -> Products :: list(tuple()) | tuple(error, Reason :: string()).
 
 

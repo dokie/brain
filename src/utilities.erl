@@ -10,7 +10,7 @@
 -author("dokie").
 
 %% API
--export([pmap/2, key/1, each_with_index/2]).
+-export([pmap/2, key/1, each_with_index/2, takefrom_with_index/3]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -58,7 +58,18 @@ key(T) when is_tuple(T) ->
 hexstring(<<X:128/big-unsigned-integer>>) ->
   lists:flatten(io_lib:format("~32.16.0b", [X])).
 
-each_with_index(F, L) when is_function(F), is_list(L) ->
+each_with_index(F, L) when is_function(F, 2), is_list(L) ->
   [
     F(Elem, Index) || {Elem, Index} <- lists:zip(L, lists:seq(1, length(L)))
   ].
+
+takefrom_with_index(F, L1, L2) when is_function(F, 2), is_list(L1), is_list(L2) ->
+  Pred = fun (E, I) ->
+    case F(E, I) of
+      true -> lists:nth(I, L2);
+      false -> false
+    end
+  end,
+  Intermediate = each_with_index(Pred, L1),
+  Stripper = fun (E) -> E /= false end,
+  lists:filter(Stripper, Intermediate).

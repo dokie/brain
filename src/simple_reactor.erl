@@ -13,7 +13,7 @@
 
 %% API
 -export([start/0, stop/1]).
--export([init/1, reactants/0, reaction/1]).
+-export([init/1, reactants/0, react/1]).
 
 -spec(init(Options :: list()) -> ok).
 init(_Options) ->
@@ -23,8 +23,8 @@ init(_Options) ->
 reactants() ->
   [{simple, float}].
 
--spec(reaction(Reactants:: list(tuple)) -> Products :: list(tuple())).
-reaction([{simple, X}]) when is_float(X) ->
+-spec(react(Reactants:: list(tuple)) -> Products :: list(tuple())).
+react([{simple, X}]) when is_float(X) ->
   Product = {simple_product, X * 2.0},
   [Product].
 
@@ -32,5 +32,6 @@ reaction([{simple, X}]) when is_float(X) ->
 start() ->
   gen_reactor:start(simple, simple_reactor, []).
 
-stop(Pid) ->
-  gen_reactor:stop(simple, Pid).
+-spec(stop(Server :: pid()) -> ok).
+stop(Server) ->
+  gen_reactor:stop(Server, simple).
