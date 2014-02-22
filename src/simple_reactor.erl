@@ -30,7 +30,7 @@ react([{simple, X}]) when is_float(X) ->
 
 -spec(start() -> {ok, pid()}).
 start() ->
-  gen_reactor:start(simple, simple_reactor, []).
+  gen_reactor:start_link(simple, simple_reactor, []).
 
 -spec(stop(Server :: pid()) -> ok).
 stop(Server) ->

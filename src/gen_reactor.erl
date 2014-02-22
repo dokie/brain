@@ -9,15 +9,13 @@
 -module(gen_reactor).
 -author("mike").
 
--define(WAIT, 5000).
-
 %% API
--export([start/3, stop/2, init/1, wait_for_reactants/3]).
--export([loop/2]).
+-export([start_link/3, stop/2, init/4, wait_for_reactants/3]).
+-export([loop/4]).
 
--spec(start(ReactorName :: atom(), ReactorModule :: module(), Options :: list()) -> {ok, pid()}).
-start(ReactorName, ReactorModule, Options) ->
-  Server = spawn(gen_reactor, init, [[ReactorName, ReactorModule, Options]]),
+-spec(start_link(ReactorName :: atom(), ReactorModule :: module(), Options :: list()) -> {ok, pid()}).
+start_link(ReactorName, ReactorModule, Options) ->
+  Server = proc_lib:start_link(?MODULE, init, [self(), ReactorName, ReactorModule, Options]),
   {ok, Server}.
 
 -spec(stop(Server :: pid(), ReactorName :: atom()) -> ok).
@@ -25,13 +23,15 @@ stop(Server, ReactorName) ->
   Server ! {stop, ReactorName},
   ok.
 
--spec(init(Config :: array()) -> ok).
-init([ReactorName, Reactor, Opts]) ->
+-spec(init(Parent :: pid(), ReactorName :: atom(), Reactor :: module(), Opts :: list()) -> no_return()).
+init(Parent, ReactorName, Reactor, Opts) ->
   register(ReactorName, self()),
   ok = Reactor:init(Opts),
   ReactantTemplates = Reactor:reactants(),
   Listener = start_listener(Reactor, ReactantTemplates),
-  loop(Reactor, [Listener, ReactantTemplates]).
+  Dbg = sys:debug_options([]),
+  proc_lib:init_ack(Parent, {ok, self()}),
+  loop(Parent, Reactor, Dbg, [Listener, ReactantTemplates]).
 
 start_listener(Reactor, ReactantTemplates) ->
   spawn(?MODULE, wait_for_reactants, [self(), Reactor, ReactantTemplates]).
@@ -51,7 +51,7 @@ wait_for_reactants(Parent, Reactor, ReactantTemplates) when is_pid(Parent), is_a
   end.
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
-loop(Reactor, [Listener, ReactantTemplates]) ->
+loop(_Parent, Reactor, _Debug, [Listener, ReactantTemplates]) ->
   receive
     {react, Listener, Reactants} ->
         Products = Reactor:react(Reactants),
@@ -63,7 +63,7 @@ loop(Reactor, [Listener, ReactantTemplates]) ->
         utilities:pmap(OutMap, Products),
         NewListener = start_listener(Reactor, ReactantTemplates),
         NewState = [NewListener, ReactantTemplates],
-        loop(Reactor, NewState);
+        loop(_Parent, Reactor, _Debug, NewState);
     {stop, ReactorName} ->
       unregister(ReactorName),
       % Stop the listener
