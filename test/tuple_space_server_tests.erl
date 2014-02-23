@@ -82,7 +82,7 @@ match_third_float_in(_Pid) ->
   [?_assertEqual(Tuple, Match)].
 
 tuple_space_in_timeout_test_() -> {
-  timeout, 10,
+  timeout, 20,
   [{"Test of in with no exact match",
    ?setup(fun no_match_inexact_in/1)},
    {"Test of in with no exact match at first but appears later",
@@ -301,3 +301,21 @@ complex_count(_Pid) ->
   utilities:pmap(Generator, lists:seq(1,10)),
   Count = ?SERVER:count({string, "done", int}),
   [?_assertEqual(Expected, Count)].
+
+tuple_space_array_test_() ->
+  [{"Test of simple array",
+   ?setup(fun simple_array/1)},
+   {"Test of complex array",
+   ?setup(fun complex_array/1)}].
+
+simple_array(_Pid) ->
+  L = [1,2,3],
+  ok = ?SERVER:out({list, L}),
+  {list, List} = ?SERVER:in({list, [{integer, 3}]}),
+  [?_assertEqual(L, List)].
+
+complex_array(_Pid) ->
+  Tuple = {complex, [this, is, hard], ["so", "is", "this", "one"], [1.1, 2.2]},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:in({complex, [{atom, 3}], [{string, 4}], [{float, 2}]}),
+  [?_assertEqual(Match, Tuple)].

@@ -23,7 +23,7 @@
 %% @spec out(Tuple) -> ok
 %% @end
 %%--------------------------------------------------------------------
--spec(out(Tuple :: term())
+-spec(out(Tuple :: tuple())
       -> ok).
 
 out(Tuple) ->
@@ -191,6 +191,9 @@ guard(Elem, Index) when float =:= Elem, is_integer(Index) ->
 guard(Elem, Index) when binary =:= Elem, is_integer(Index) ->
   {is_binary, list_to_atom("$" ++ integer_to_list(Index))};
 
+guard([_Elem], Index) when is_integer(Index) ->
+  {is_list, list_to_atom("$" ++ integer_to_list(Index))};
+
 guard(Elem, Index) when any =:= Elem, is_integer(Index) ->
   {};
 
@@ -223,6 +226,41 @@ mapper(Elem) when float =:= Elem -> fun (F) -> is_float(F) end;
 mapper(Elem) when binary =:= Elem -> fun (B) -> is_binary(B) end;
 mapper(Elem) when atom =:= Elem -> fun (A) -> is_atom(A) end;
 mapper(Elem) when any =:= Elem -> fun (_A) -> true end;
+
+mapper([{integer, N}]) ->
+  fun (L) ->
+    Pred = fun (E) -> is_integer(E) end,
+    is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
+  end;
+mapper([{int, N}]) ->
+  fun (L) ->
+    Pred = fun (E) -> is_integer(E) end,
+    is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
+  end;
+mapper([{float, N}]) ->
+  fun (L) ->
+    Pred = fun (E) -> is_float(E) end,
+    is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
+  end;
+mapper([{string, N}]) ->
+  fun (L) ->
+    Pred = fun (E) -> io_lib:printable_list(E) end,
+    is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
+  end;
+mapper([{binary, N}]) ->
+  fun (L) ->
+    Pred = fun (E) -> is_binary(E) end,
+    is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
+  end;
+mapper([{atom, N}]) ->
+  fun (L) ->
+    Pred = fun (E) -> is_atom(E) end,
+    is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
+  end;
+mapper([{any, N}]) ->
+  fun (L) ->
+    is_list(L) andalso N =:= length(L)
+  end;
 mapper(Elem) -> fun (S) -> S =:= Elem end.
 
 funky(TemplateList) ->
