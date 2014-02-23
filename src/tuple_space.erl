@@ -182,17 +182,20 @@ guard(Elem, Index) when integer =:= Elem, is_integer(Index) ->
 guard(Elem, Index) when int =:= Elem, is_integer(Index) ->
   {is_integer, list_to_atom("$" ++ integer_to_list(Index))};
 
-guard(Elem, Index) when atom =:= Elem, is_integer(Index) ->
-  {is_atom, list_to_atom("$" ++ integer_to_list(Index))};
-
 guard(Elem, Index) when float =:= Elem, is_integer(Index) ->
   {is_float, list_to_atom("$" ++ integer_to_list(Index))};
 
 guard(Elem, Index) when binary =:= Elem, is_integer(Index) ->
   {is_binary, list_to_atom("$" ++ integer_to_list(Index))};
 
+guard(Elem, Index) when atom =:= Elem, is_integer(Index) ->
+  {is_atom, list_to_atom("$" ++ integer_to_list(Index))};
+
 guard([_Elem], Index) when is_integer(Index) ->
   {is_list, list_to_atom("$" ++ integer_to_list(Index))};
+
+guard({record, Name}, Index) when is_atom(Name), is_integer(Index) ->
+  {is_tuple, list_to_atom("$" ++ integer_to_list(Index))};
 
 guard(Elem, Index) when any =:= Elem, is_integer(Index) ->
   {};
@@ -205,9 +208,6 @@ guard(Elem, Index) when is_function(Elem, 1), is_integer(Index) ->
 
 guard(Elem, Index) when is_integer(Index) ->
   {'==', list_to_atom("$" ++ integer_to_list(Index)), Elem}.
-
-%%find_all_matches([], _TupleList) ->
-%%  [];
 
 find_all_matches(_FunsList, []) ->
   [];
@@ -261,6 +261,8 @@ mapper([{any, N}]) ->
   fun (L) ->
     is_list(L) andalso N =:= length(L)
   end;
+mapper({record, Name}) -> fun (R) -> is_record(R, Name) end;
+
 mapper(Elem) -> fun (S) -> S =:= Elem end.
 
 funky(TemplateList) ->
