@@ -12,7 +12,7 @@
 -behaviour(reactor).
 
 %% API
--export([start/0, stop/1]).
+-export([start/0]).
 -export([init/1, reactants/0, react/1]).
 
 -spec(init(Options :: list()) -> ok).
@@ -31,7 +31,3 @@ react([{simple, X}]) when is_float(X) ->
 -spec(start() -> {ok, pid()}).
 start() ->
   gen_reactor:start_link(simple, simple_reactor, []).
-
--spec(stop(Server :: pid()) -> ok).
-stop(Server) ->
-  gen_reactor:stop(Server, simple).

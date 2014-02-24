@@ -10,18 +10,13 @@
 -author("mike").
 
 %% API
--export([start_link/3, stop/2, init/4, wait_for_reactants/3]).
--export([loop/4]).
+-export([start_link/3, init/4, wait_for_reactants/3]).
+-export([loop/3]).
+-export([system_continue/3, system_terminate/4, write_debug/3, system_code_change/4]).
 
 -spec(start_link(ReactorName :: atom(), ReactorModule :: module(), Options :: list()) -> {ok, pid()}).
 start_link(ReactorName, ReactorModule, Options) ->
-  Server = proc_lib:start_link(?MODULE, init, [self(), ReactorName, ReactorModule, Options]),
-  {ok, Server}.
-
--spec(stop(Server :: pid(), ReactorName :: atom()) -> ok).
-stop(Server, ReactorName) ->
-  Server ! {stop, ReactorName},
-  ok.
+  proc_lib:start_link(?MODULE, init, [self(), ReactorName, ReactorModule, Options]).
 
 -spec(init(Parent :: pid(), ReactorName :: atom(), Reactor :: module(), Opts :: list()) -> no_return()).
 init(Parent, ReactorName, Reactor, Opts) ->
@@ -31,7 +26,7 @@ init(Parent, ReactorName, Reactor, Opts) ->
   Listener = start_listener(Reactor, ReactantTemplates),
   Dbg = sys:debug_options([]),
   proc_lib:init_ack(Parent, {ok, self()}),
-  loop(Parent, Reactor, Dbg, [Listener, ReactantTemplates]).
+  loop(Parent, Dbg, [Reactor, Listener, ReactantTemplates]).
 
 start_listener(Reactor, ReactantTemplates) ->
   spawn(?MODULE, wait_for_reactants, [self(), Reactor, ReactantTemplates]).
@@ -50,8 +45,21 @@ wait_for_reactants(Parent, Reactor, ReactantTemplates) when is_pid(Parent), is_a
       ok
   end.
 
+system_continue(Parent, Deb, State) ->
+  io:format("Continue!~n"),
+  loop(Parent, Deb, State).
+
+system_terminate(Reason, _Parent, _Deb, [_Reactor, Listener, _ReactantTemplates]) ->
+  io:format("Terminate!~n"),
+  exit(Listener, normal),
+  exit(Reason).
+
+system_code_change(State, _Module, _OldVsn, _Extra) ->
+  io:format("Changed code!~n"),
+  {ok, State}.
+
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
-loop(_Parent, Reactor, _Debug, [Listener, ReactantTemplates]) ->
+loop(Parent, Debug, State = [Reactor, Listener, ReactantTemplates]) ->
   receive
     {react, Listener, Reactants} ->
         Products = Reactor:react(Reactants),
@@ -62,11 +70,15 @@ loop(_Parent, Reactor, _Debug, [Listener, ReactantTemplates]) ->
         end,
         utilities:pmap(OutMap, Products),
         NewListener = start_listener(Reactor, ReactantTemplates),
-        NewState = [NewListener, ReactantTemplates],
-        loop(_Parent, Reactor, _Debug, NewState);
-    {stop, ReactorName} ->
-      unregister(ReactorName),
-      % Stop the listener
-      exit(Listener, normal),
-      exit(shutdown)
+        NewState = [Reactor, NewListener, ReactantTemplates],
+        loop(Parent, Debug, NewState);
+    {system, From, Request} ->
+      sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State);
+    Msg ->
+      % Let's print unknown messages.
+      sys:handle_debug(Debug, fun ?MODULE:write_debug/3, ?MODULE, {in, Msg}),
+      loop(Parent, Debug, State)
   end.
+
+write_debug(Dev, Event, Name) ->
+  io:format(Dev, "~p event = ~p~n", [Name, Event]).
