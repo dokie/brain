@@ -12,7 +12,7 @@
 -behaviour(reactor).
 
 %% API
--export([start/0]).
+-export([start_link/0]).
 -export([init/1, reactants/0, react/1]).
 
 -spec(init(Options :: list()) -> ok).
@@ -28,6 +28,6 @@ react([{simple, X}]) when is_float(X) ->
   Product = {simple_product, X * 2.0},
   [Product].
 
--spec(start() -> {ok, pid()}).
-start() ->
+-spec(start_link() -> {ok, pid()}).
+start_link() ->
   gen_reactor:start_link(simple, simple_reactor, []).
