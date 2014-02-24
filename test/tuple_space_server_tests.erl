@@ -302,11 +302,13 @@ complex_count(_Pid) ->
   Count = ?SERVER:count({string, "done", int}),
   [?_assertEqual(Expected, Count)].
 
-tuple_space_array_test_() ->
+tuple_space_array_record_test_() ->
   [{"Test of simple array",
    ?setup(fun simple_array/1)},
    {"Test of complex array",
-   ?setup(fun complex_array/1)}].
+   ?setup(fun complex_array/1)},
+   {"Test of simple record",
+   ?setup(fun simple_record/1)}].
 
 simple_array(_Pid) ->
   L = [1,2,3],
@@ -319,3 +321,11 @@ complex_array(_Pid) ->
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:in({complex, [{atom, 3}], [{string, 4}], [{float, 2}]}),
   [?_assertEqual(Match, Tuple)].
+
+-record(point_3d, {x, y, z}).
+
+simple_record(_Pid) ->
+  Origin = #point_3d{x=0.0, y=0.0, z=0.0},
+  ok = ?SERVER:out({coordinate, Origin}),
+  {_, Point} = ?SERVER:in({coordinate, {record, point_3d}}),
+  [?_assertEqual(Point, Origin)].
