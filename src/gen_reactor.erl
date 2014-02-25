@@ -38,7 +38,7 @@ wait_for_reactants(Parent, Reactor, ReactantTemplates) when is_pid(Parent), is_a
       tuple_space_server:in(ReactantTemplate)
       end,
   Reactants = utilities:pmap(InMap, ReactantTemplates),
-  %% Send Reactants to generic reactor process
+  %% Send Reactants to reactor process
   Parent ! {react, self(), Reactants},
   receive
     {reacted, _From} ->
