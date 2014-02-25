@@ -317,9 +317,9 @@ simple_array(_Pid) ->
   [?_assertEqual(L, List)].
 
 complex_array(_Pid) ->
-  Tuple = {complex, [this, is, hard], ["so", "is", "this", "one"], [1.1, 2.2]},
+  Tuple = {complex, [this, is, hard], ["so", "is", "this", "one"], [1.1, 2.2], [<<"Yikes">>], [9,8,7,6,5], [1.2, 3, "fred"]},
   ok = ?SERVER:out(Tuple),
-  Match = ?SERVER:in({complex, [{atom, 3}], [{string, 4}], [{float, 2}]}),
+  Match = ?SERVER:in({complex, [{atom, 3}], [{string, 4}], [{float, 2}], [{binary, 1}], [{int, 5}], [{any, 3}]}),
   [?_assertEqual(Match, Tuple)].
 
 -record(point_3d, {x, y, z}).
