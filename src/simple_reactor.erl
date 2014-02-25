@@ -30,4 +30,4 @@ react([{simple, X}]) when is_float(X) ->
 
 -spec(start_link() -> {ok, pid()}).
 start_link() ->
-  gen_reactor:start_link(simple, simple_reactor, []).
+  gen_reactor:start_link(simple_reactor, simple_reactor, []).
