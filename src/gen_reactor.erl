@@ -62,16 +62,20 @@ system_code_change(State, _Module, _OldVsn, _Extra) ->
 loop(Parent, Debug, State = [Reactor, Listener, ReactantTemplates]) ->
   receive
     {react, Listener, Reactants} ->
-        Products = Reactor:react(Reactants),
-        Listener ! {reacted, self()},
-        OutMap = fun
-          (Product) when is_tuple(Product) ->
-            tuple_space_server:out(Product)
-        end,
-        utilities:pmap(OutMap, Products),
-        NewListener = start_listener(Reactor, ReactantTemplates),
-        NewState = [Reactor, NewListener, ReactantTemplates],
-        loop(Parent, Debug, NewState);
+      Listener ! {reacted, self()},
+      spawn(Reactor, react, [self(), Reactants]),
+      loop(Parent, Debug, State);
+
+    {products, Products} ->
+      OutMap = fun
+        (Product) when is_tuple(Product) ->
+          tuple_space_server:out(Product)
+      end,
+      utilities:pmap(OutMap, Products),
+      NewListener = start_listener(Reactor, ReactantTemplates),
+      NewState = [Reactor, NewListener, ReactantTemplates],
+      loop(Parent, Debug, NewState);
+
     {system, From, Request} ->
       sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State);
     Msg ->

@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([init/1, reactants/0, react/1]).
+-export([init/1, reactants/0, react/2]).
 
 -spec(init(Options :: list()) -> ok).
 init(_Options) ->
@@ -23,10 +23,10 @@ init(_Options) ->
 reactants() ->
   [{simple, float}].
 
--spec(react(Reactants:: list(tuple)) -> Products :: list(tuple())).
-react([{simple, X}]) when is_float(X) ->
+-spec(react(From :: pid(), Reactants:: list(tuple)) -> no_return()).
+react(From, [{simple, X}]) when is_float(X) ->
   Product = {simple_product, X * 2.0},
-  [Product].
+  From ! {products, [Product]}.
 
 -spec(start_link() -> {ok, pid()}).
 start_link() ->
