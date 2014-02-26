@@ -62,11 +62,12 @@ system_code_change(State, _Module, _OldVsn, _Extra) ->
 loop(Parent, Debug, State = [Extractor, Listener, ExtractantTemplates]) ->
   receive
     {extract, Listener, Extractants} ->
-        Extractor:extract(Extractants),
-        Listener ! {extracted, self()},
-        NewListener = start_listener(Extractor, ExtractantTemplates),
-        NewState = [Extractor, NewListener, ExtractantTemplates],
-        loop(Parent, Debug, NewState);
+      Listener ! {extracted, self()},
+      spawn(Extractor, extract, [Extractants]),
+      NewListener = start_listener(Extractor, ExtractantTemplates),
+      NewState = [Extractor, NewListener, ExtractantTemplates],
+      loop(Parent, Debug, NewState);
+
     {system, From, Request} ->
       sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, State);
     Msg ->
