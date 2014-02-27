@@ -12,22 +12,13 @@
 -behaviour(reactor).
 
 %% API
--export([start_link/0]).
--export([init/1, reactants/0, react/2]).
+-export([init/1, react/2]).
 
 -spec(init(Options :: list()) -> ok).
 init(_Options) ->
-  ok.
-
--spec(reactants() -> list(tuple())).
-reactants() ->
   [{simple, float}].
 
 -spec(react(From :: pid(), Reactants:: list(tuple)) -> no_return()).
 react(From, [{simple, X}]) when is_float(X) ->
   Product = {simple_product, X * 2.0},
   From ! {products, [Product]}.
-
--spec(start_link() -> {ok, pid()}).
-start_link() ->
-  gen_reactor:start_link(simple_reactor, simple_reactor, []).

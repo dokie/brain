@@ -10,9 +10,7 @@
 -author("dokie").
 
 %% Behaviour
--callback init(Options :: list(term())) -> ok | tuple(error, Reason :: string()).
-
--callback reactants() -> Templates :: list(tuple()).
+-callback init(Options :: list(term())) -> Templates :: list(tuple()).
 
 -callback react(From :: pid(), Reactants :: list(tuple())) -> no_return().
 

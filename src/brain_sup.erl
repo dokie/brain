@@ -25,7 +25,6 @@ start_link() ->
 init([]) ->
     {ok, { {one_for_one, 5, 10},
       [
-        ?CHILD(tuple_space_server, worker),
-        ?CHILD(simple_reactor, worker)
+        ?CHILD(tuple_space_server, worker)
       ]} }.
 

@@ -7,6 +7,6 @@
               {env,[]},
               {modules,[brain_app,brain_sup,extractor,extractor_server,
                         gen_extractor,gen_generator,gen_reactor,generator,
-                        reactor,simple_extractor,simple_generator,
-                        simple_reactor,tuple_space,tuple_space_server,
-                        utilities]}]}.
+                        reactor,reactor_server,simple_extractor,
+                        simple_generator,simple_reactor,tuple_space,
+                        tuple_space_server,utilities]}]}.
