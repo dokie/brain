@@ -53,7 +53,9 @@ tuple_space_in_test_() ->
    {"Test of in with match of second field as INTEGER",
    ?setup(fun match_second_int_in/1)},
    {"Test of in with match of third field as FLOAT",
-   ?setup(fun match_third_float_in/1)}].
+   ?setup(fun match_third_float_in/1)},
+   {"Test of in with match of third field as fun",
+   ?setup(fun match_third_fun_in/1)}].
 
 exact_in(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
@@ -81,8 +83,14 @@ match_third_float_in(_Pid) ->
   Match = ?SERVER:in({any, any, float}),
   [?_assertEqual(Tuple, Match)].
 
+match_third_fun_in(_Pid) ->
+  Tuple = {"Yo yo", 42, 3.14},
+  ok = ?SERVER:out(Tuple),
+  Match = ?SERVER:in({any, any, fun(X) -> X > 3.0 end}),
+  [?_assertEqual(Tuple, Match)].
+
 tuple_space_in_timeout_test_() -> {
-  timeout, 20,
+  timeout, 30,
   [{"Test of in with no exact match",
    ?setup(fun no_match_inexact_in/1)},
    {"Test of in with no exact match at first but appears later",
@@ -91,17 +99,17 @@ tuple_space_in_timeout_test_() -> {
 no_match_inexact_in(_Pid) ->
   Tuple = {"The Edge", 999, 3.14},
   ok = ?SERVER:out(Tuple),
-  [?_assertExit({timeout, _}, ?SERVER:in({"The Edge", 999, 2.17}, 2000))].
+  [?_assertExit({timeout, _}, ?SERVER:in({"The Edge", 999, 2.17}, 1000))].
 
 no_match_at_first_in(_Pid) ->
   BadTuple = {"The Edge", 999, 3.14},
   GoodTuple = {"The Edge", 999, 2.17},
   ok = ?SERVER:out(BadTuple),
   spawn(fun () ->
-    timer:sleep(500),
+    timer:sleep(100),
     ?SERVER:out(GoodTuple)
     end),
-  Match = ?SERVER:in({"The Edge", 999, 2.17}, 1500),
+  Match = ?SERVER:in({"The Edge", 999, fun (X) -> X < 3 end}, 2500),
   [?_assertEqual(GoodTuple, Match)].
 
 tuple_space_in_bad_test_() ->
