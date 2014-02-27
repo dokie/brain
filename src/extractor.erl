@@ -10,8 +10,6 @@
 -author("dokie").
 
 %% Behaviour
--callback init(Options :: list(term())) -> ok | tuple(error, Reason :: string()).
-
--callback extractants() -> Templates :: list(tuple()).
+-callback init(Options :: list(term())) -> Extractants :: list(tuple()).
 
 -callback extract(Extractants :: list(tuple())) -> no_return().

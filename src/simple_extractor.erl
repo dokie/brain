@@ -12,21 +12,12 @@
 -behaviour(extractor).
 
 %% API
--export([start_link/0]).
--export([init/1, extractants/0, extract/1]).
+-export([init/1, extract/1]).
 
--spec(init(Options :: list()) -> ok).
+-spec(init(Options :: list()) -> ExtractantTemplates :: list(tuple())).
 init(_Options) ->
-  ok.
-
--spec(extractants() -> list(tuple())).
-extractants() ->
   [{simple_product, float}].
 
 -spec(extract(Extractants :: list(tuple)) -> no_return()).
 extract([{simple_product, X}]) when is_float(X) ->
   io:format("Extracted ~p~n", [{simple_product, X}]).
-
--spec(start_link() -> {ok, pid()}).
-start_link() ->
-  gen_extractor:start_link(simple_extractor, simple_extractor, []).
