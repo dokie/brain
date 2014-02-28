@@ -12,4 +12,4 @@
 %% Behaviour
 -callback init(Options :: list(term())) -> {ok, State :: term()} | tuple(error, Reason :: string()).
 
--callback generate(From :: pid(), State :: term()) -> {generated, Tuple :: tuple(), NewState:: term()}.
+-callback generate(From :: pid(), State :: term()) -> no_return().

@@ -1,18 +1,18 @@
 %%%-------------------------------------------------------------------
-%%% @author dokie
+%%% @author mike
 %%% @copyright (C) 2014, QixSoft Limited
 %%% @doc
 %%%
 %%% @end
-%%% Created : 27. Feb 2014 21:26
+%%% Created : 27. Feb 2014 13:48
 %%%-------------------------------------------------------------------
--module(extractor_server).
--author("dokie").
+-module(generator_server).
+-author("mike").
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/2, wait_for_extractants/2]).
+-export([start_link/3, generate/1, stop/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -24,11 +24,18 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {extractor_module, extractant_templates}).
+-record(state, {generator, generator_state}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+-spec(generate(GeneratorName :: atom()) -> no_return()).
+generate(GeneratorName) ->
+  gen_server:cast(GeneratorName, generate).
+
+-spec(stop(GeneratorName :: atom()) -> {stop, normal, State :: term()}).
+stop(GeneratorName) ->
+  gen_server:cast(GeneratorName, stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -36,10 +43,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(ExtractorModule :: module(), Options :: list(tuple())) ->
+-spec(start_link(GeneratorName :: atom(), GeneratorModule :: module(), Options :: list(tuple())) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(ExtractorModule, Options) ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [ExtractorModule, Options], []).
+start_link(GeneratorName, GeneratorModule, Options) ->
+  gen_server:start_link({local, GeneratorName}, ?MODULE, [GeneratorModule, Options], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -59,10 +66,9 @@ start_link(ExtractorModule, Options) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([ExtractorModule, Options]) ->
-  ExtractantTemplates = ExtractorModule:init(Options),
-  start_listener(ExtractorModule, ExtractantTemplates),
-  {ok, #state{extractor_module = ExtractorModule, extractant_templates = ExtractantTemplates}}.
+init([GeneratorModule, Options]) ->
+  {ok, InitialGeneratorState} = GeneratorModule:init(Options),
+  {ok, #state{generator = GeneratorModule, generator_state = InitialGeneratorState}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -93,11 +99,13 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast({extract, Extractants}, State) ->
-  Extractor = State#state.extractor_module,
-  Extractor:extract(Extractants),
-  start_listener(Extractor, State#state.extractant_templates),
+handle_cast(generate, State) ->
+  Generator = State#state.generator,
+  Generator:generate(self(), State#state.generator_state),
   {noreply, State};
+
+handle_cast(stop, State) ->
+  {stop, normal, State};
 
 handle_cast(_Request, State) ->
   {noreply, State}.
@@ -116,6 +124,11 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+handle_info({generated, Product, GeneratedState}, State) ->
+  ok = tuple_space_server:out(Product),
+  NewState = State#state{generator_state = GeneratedState},
+  {noreply, NewState};
+
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -152,17 +165,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
--spec(start_listener(Extractor :: module(), ExtractantTemplates :: list(tuple()))
-      -> no_return()).
-start_listener(Extractor, ExtractantTemplates) ->
-  spawn_link(?MODULE, wait_for_extractants, [Extractor, ExtractantTemplates]).
-
--spec(wait_for_extractants(Extractor :: module(), ExtractantTemplates :: list(tuple())) -> no_return()).
-wait_for_extractants(Extractor, ExtractantTemplates) when is_atom(Extractor), is_list(ExtractantTemplates) ->
-  InMap = fun
-    (ExtractantTemplate) when is_tuple(ExtractantTemplate) ->
-      tuple_space_server:in(ExtractantTemplate)
-  end,
-  Extractants = utilities:pmap(InMap, ExtractantTemplates),
-  %% Send Extractants to extractor process
-  gen_server:cast(?MODULE, {extract, Extractants}).

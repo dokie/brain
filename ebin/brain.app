@@ -6,6 +6,7 @@
               {mod,{brain_app,[]}},
               {env,[]},
               {modules,[brain_app,brain_sup,extractor,extractor_server,
-                        gen_generator,generator,reactor,reactor_server,
-                        simple_extractor,simple_generator,simple_reactor,
-                        tuple_space,tuple_space_server,utilities]}]}.
+                        gen_generator,generator,generator_server,reactor,
+                        reactor_server,simple_extractor,simple_generator,
+                        simple_reactor,tuple_space,tuple_space_server,
+                        utilities]}]}.

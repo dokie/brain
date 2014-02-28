@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2, wait_for_reactants/2]).
+-export([start_link/3, stop/1, wait_for_reactants/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -29,6 +29,9 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+-spec(stop(ReactorName :: atom()) -> {stop, normal, State :: term()}).
+stop(ReactorName) ->
+  gen_server:cast(ReactorName, stop).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -36,10 +39,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(ReactorModule :: module(), Options :: list(tuple())) ->
+-spec(start_link(ReactorName :: atom(), ReactorModule :: module(), Options :: list(tuple())) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(ReactorModule, Options) ->
-  gen_server:start_link({local, ?SERVER}, ?MODULE, [ReactorModule, Options], []).
+start_link(ReactorName, ReactorModule, Options) ->
+  gen_server:start_link({local, ReactorName}, ?MODULE, [ReactorName, ReactorModule, Options], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -59,9 +62,9 @@ start_link(ReactorModule, Options) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([ReactorModule, Options]) ->
+init([ReactorName, ReactorModule, Options]) ->
   ReactantTemplates = ReactorModule:init(Options),
-  start_listener(ReactorModule, ReactantTemplates),
+  start_listener(ReactorName, ReactorModule, ReactantTemplates),
   {ok, #state{reactor_module = ReactorModule, reactant_templates = ReactantTemplates}}.
 
 %%--------------------------------------------------------------------
@@ -93,11 +96,14 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast({react, Reactants}, State) ->
+handle_cast({react, ReactorName, Reactants}, State) ->
   Reactor = State#state.reactor_module,
   Reactor:react(self(), Reactants),
-  start_listener(Reactor, State#state.reactant_templates),
+  start_listener(ReactorName, Reactor, State#state.reactant_templates),
   {noreply, State};
+
+handle_cast(stop, State) ->
+  {stop, normal, State};
 
 handle_cast(_Request, State) ->
   {noreply, State}.
@@ -160,17 +166,17 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
--spec(start_listener(Reactor :: module(), ReactantTemplates :: list(tuple()))
+-spec(start_listener(ReactorName :: atom(), Reactor :: module(), ReactantTemplates :: list(tuple()))
       -> no_return()).
-start_listener(Reactor, ReactantTemplates) ->
-  spawn_link(?MODULE, wait_for_reactants, [Reactor, ReactantTemplates]).
+start_listener(ReactorName, Reactor, ReactantTemplates) ->
+  spawn_link(?MODULE, wait_for_reactants, [ReactorName, Reactor, ReactantTemplates]).
 
--spec(wait_for_reactants(Reactor :: module(), ReactantTemplates :: list(tuple())) -> no_return()).
-wait_for_reactants(Reactor, ReactantTemplates) when is_atom(Reactor), is_list(ReactantTemplates) ->
+-spec(wait_for_reactants(ReactorName :: atom(), Reactor :: module(), ReactantTemplates :: list(tuple())) -> no_return()).
+wait_for_reactants(ReactorName, Reactor, ReactantTemplates) when is_atom(Reactor), is_list(ReactantTemplates) ->
   InMap = fun
     (ReactantTemplate) when is_tuple(ReactantTemplate) ->
       tuple_space_server:in(ReactantTemplate)
   end,
   Reactants = utilities:pmap(InMap, ReactantTemplates),
   %% Send Reactants to reactor process
-  gen_server:cast(?MODULE, {react, Reactants}).
+  gen_server:cast(ReactorName, {react, ReactorName, Reactants}).
