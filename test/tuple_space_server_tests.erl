@@ -99,17 +99,17 @@ tuple_space_in_timeout_test_() -> {
 no_match_inexact_in(_Pid) ->
   Tuple = {"The Edge", 999, 3.14},
   ok = ?SERVER:out(Tuple),
-  [?_assertExit({timeout, _}, ?SERVER:in({"The Edge", 999, 2.17}, 1000))].
+  [?_assertExit({timeout, _}, ?SERVER:in({"The Edge", 999, 2.17}, 500))].
 
 no_match_at_first_in(_Pid) ->
   BadTuple = {"The Edge", 999, 3.14},
-  GoodTuple = {"The Edge", 999, 2.17},
+  GoodTuple = {"The Edge", 998, 2.17},
   ok = ?SERVER:out(BadTuple),
   spawn(fun () ->
-    timer:sleep(100),
+    timer:sleep(1000),
     ?SERVER:out(GoodTuple)
     end),
-  Match = ?SERVER:in({"The Edge", 999, fun (X) -> X < 3 end}, 2500),
+  Match = ?SERVER:in({"The Edge", 998, float}),
   [?_assertEqual(GoodTuple, Match)].
 
 tuple_space_in_bad_test_() ->
@@ -122,7 +122,6 @@ bad_template(_Pid) ->
   Bad = {any, fun (_X) -> 1/0 end},
   Match = ?SERVER:in(Bad),
   [?_assertEqual(undefined, Match)].
-
 
 tuple_space_inp_test_() ->
   [{"Test of inp with exact Tuple",
@@ -337,3 +336,15 @@ simple_record(_Pid) ->
   ok = ?SERVER:out({coordinate, Origin}),
   {_, Point} = ?SERVER:in({coordinate, {record, point_3d}}),
   [?_assertEqual(Point, Origin)].
+
+tuple_space_locking_test_() ->
+  [{"Test of dual in",
+   ?setup(fun locked_in/1)}].
+
+locked_in(_Pid) ->
+  ok = ?SERVER:out({dual, "Fuel"}),
+  Match = utilities:pmap(fun (_E) -> ?SERVER:in({dual, string}) end, lists:seq(1,5)),
+  ?debugFmt("~nMatch:~p~n", [Match]),
+  Count = length(lists:filter(fun (E) -> undefined =:= E end, Match)),
+  [?_assertEqual(4, Count)].
+

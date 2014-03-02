@@ -191,6 +191,7 @@ handle_call({in, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, in, [Template, self()]),
   ets:insert(requests, {Pid, From}),
+  Pid ! unlock,
   {noreply, State};
 
 handle_call({inp, Template}, _From, State) ->
@@ -201,6 +202,7 @@ handle_call({rd, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, rd, [Template, self()]),
   ets:insert(requests, {Pid, From}),
+  Pid ! unlock,
   {noreply, State};
 
 handle_call({rdp, Template}, _From, State) ->
@@ -250,6 +252,7 @@ handle_cast(_Request, State) ->
 handle_info({Worker, done, in, Tuple}, State) ->
   Request = ets:lookup(requests, Worker),
   ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  Worker ! unlock,
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
   reply_to_request(Request, State, Stripped),
   {noreply, State};
