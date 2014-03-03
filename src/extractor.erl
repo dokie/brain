@@ -12,4 +12,4 @@
 %% Behaviour
 -callback init(Options :: list(term())) -> Extractants :: list(tuple()).
 
--callback extract(Extractants :: list(tuple())) -> no_return().
+-callback extract(Extractants :: list(tuple())) -> ok.

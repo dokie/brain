@@ -9,6 +9,8 @@
 -module(tuple_space_server).
 -author("mike").
 
+-include_lib("eunit/include/eunit.hrl").
+
 -behaviour(gen_server).
 
 %% API
@@ -184,41 +186,47 @@ init([]) ->
   {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
 handle_call({out, Tuple}, _From, State) ->
-  Reply = tuple_space:out(Tuple),
-  {reply, Reply, State};
+  ToStore = tuple_space:out(Tuple),
+  ets:insert(tuples, ToStore),
+  {reply, ok, State};
 
 handle_call({in, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, in, [Template, self()]),
   ets:insert(requests, {Pid, From}),
-  Pid ! unlock,
   {noreply, State};
 
-handle_call({inp, Template}, _From, State) ->
-  Reply = tuple_space:inp(Template),
-  {reply, Reply, State};
+handle_call({inp, Template}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, inp, [Template, self()]),
+  ets:insert(requests, {Pid, From}),
+  {noreply, State};
 
 handle_call({rd, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, rd, [Template, self()]),
   ets:insert(requests, {Pid, From}),
-  Pid ! unlock,
   {noreply, State};
 
-handle_call({rdp, Template}, _From, State) ->
-  Reply = tuple_space:rdp(Template),
-  {reply, Reply, State};
+handle_call({rdp, Template}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, rdp, [Template, self()]),
+  ets:insert(requests, {Pid, From}),
+  {noreply, State};
 
 handle_call({eval, Specification}, _From, State) ->
-  Reply = tuple_space:eval(Specification),
-  {reply, Reply, State};
+  ToStore = tuple_space:eval(Specification),
+  ets:insert(tuples, ToStore),
+  {reply, ok, State};
 
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
 
-handle_call({count, Template}, _From, State) ->
-  Reply = tuple_space:count(Template),
-  {reply, Reply, State}.
+handle_call({count, Template}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, count, [Template, self()]),
+  ets:insert(requests, {Pid, From}),
+  {noreply, State}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -249,18 +257,50 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #tuplespace{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
-handle_info({Worker, done, in, Tuple}, State) ->
+handle_info({Worker, _Ref, done, in, Tuple}, State) ->
   Request = ets:lookup(requests, Worker),
+  Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
+  reply_to_request(Request, State, Stripped),
   ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
-  Worker ! unlock,
+  {noreply, State};
+
+handle_info({Worker, _Ref, done, inp, undefined}, State) ->
+  Request = ets:lookup(requests, Worker),
+  reply_to_request(Request, State, undefined),
+  {noreply, State};
+
+handle_info({Worker, _Ref, done, inp, Tuple}, State) ->
+  Request = ets:lookup(requests, Worker),
+  Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
+  reply_to_request(Request, State, Stripped),
+  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  {noreply, State};
+
+handle_info({Worker, Ref, query, Spec}, State) ->
+  Selections = ets:select(tuples, Spec),
+  Worker ! {selected, Ref, Selections},
+  {noreply, State};
+
+handle_info({Worker, _Ref, done, rd, Tuple}, State) ->
+  Request = ets:lookup(requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
   reply_to_request(Request, State, Stripped),
   {noreply, State};
 
-handle_info({Worker, done, rd, Tuple}, State) ->
+handle_info({Worker, _Ref, done, rdp, undefined}, State) ->
+  Request = ets:lookup(requests, Worker),
+  reply_to_request(Request, State, undefined),
+  {noreply, State};
+
+handle_info({Worker, _Ref, done, rdp, Tuple}, State) ->
   Request = ets:lookup(requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
   reply_to_request(Request, State, Stripped),
+  {noreply, State};
+
+handle_info({Worker, _Ref, done, count, Count}, State) ->
+  Request = ets:lookup(requests, Worker),
+  reply_to_request(Request, State, Count),
   {noreply, State};
 
 handle_info({'EXIT', _Pid, normal}, State) ->
@@ -275,7 +315,7 @@ reply_to_request([], _State, _Reply) ->
   cleanup_request([], _State);
 
 reply_to_request([{Worker, Client}], State, Reply) ->
-  cleanup_request([{Worker, Client}], State),
+  ok = cleanup_request([{Worker, Client}], State),
   gen_server:reply(Client, Reply),
   ok.
 

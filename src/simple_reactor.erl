@@ -14,11 +14,12 @@
 %% API
 -export([init/1, react/2]).
 
--spec(init(Options :: list()) -> ok).
+-spec(init(Options :: list(term())) -> Templates :: list(tuple())).
 init(_Options) ->
   [{simple, float}].
 
--spec(react(From :: pid(), Reactants:: list(tuple)) -> no_return()).
+-spec(react(From :: atom() | pid() | port() | {atom(),atom()}, Reactants :: [{'simple',float()},...]) -> 'ok').
 react(From, [{simple, X}]) when is_float(X) ->
   Product = {simple_product, X * 2.0},
-  From ! {products, [Product]}.
+  From ! {products, [Product]},
+  ok.

@@ -9,8 +9,11 @@
 -module(tuple_space).
 -author("mike").
 
+-include_lib("eunit/include/eunit.hrl").
+
+
 %% API
--export([out/1, in/2, inp/1, rd/2, rdp/1, eval/1, count/1]).
+-export([out/1, in/2, inp/2, rd/2, rdp/2, eval/1, count/2]).
 
 %% Definitions
 -define(WAIT, 50).
@@ -23,15 +26,12 @@
 %% @spec out(Tuple) -> ok
 %% @end
 %%--------------------------------------------------------------------
--spec(out(Tuple :: tuple())
-      -> ok).
+-spec(out(Tuple :: tuple()) -> tuple()).
 
 out(Tuple) ->
   %% Augment Tuple with UUID
   Uuid = uuid:to_string(simple,uuid:uuid4()),
-  ToStore = list_to_tuple([Uuid] ++ tuple_to_list(Tuple)),
-  ets:insert(tuples, ToStore),
-  ok.
+  list_to_tuple([Uuid] ++ tuple_to_list(Tuple)).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -43,7 +43,7 @@ out(Tuple) ->
 %%--------------------------------------------------------------------
 -spec in(Template :: tuple(), Caller :: pid()) -> done.
 
-in(Template, Caller) ->
+in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
@@ -57,28 +57,27 @@ in(Template, Caller) ->
 %% @spec inp(Template) -> {ok, Tuple} | {ok, undefined}
 %% @end
 %%--------------------------------------------------------------------
--spec inp(Template :: tuple()) -> {ok, Tuple :: tuple() | undefined}.
+-spec inp(Template :: tuple(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','undefined' | tuple()}.
 
-inp(Template) when is_tuple(Template) ->
-  locate(inp, Template).
+inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+  locate(inp, Template, Caller).
 
-locate(Mode, Template) when is_tuple(Template) ->
+locate(Mode, Template, Server) when is_tuple(Template), is_pid(Server) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  Selections = find_all_selections(MatchHead, Guard),
+  Selections = find_all_selections(Server, MatchHead, Guard),
   %% Second pass to deal with string and functions
   TemplateFuns = funky([any] ++ TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
   case Matches of
-    [] -> undefined;
+    [] ->
+      Ref = make_ref(),
+      Server ! {self(), Ref, done, Mode, undefined};
+
     [H | _] ->
-      case Mode of
-        inp ->
-          ets:delete(tuples, element(1, list_to_tuple(H)));
-        _ -> ok
-      end,
-      list_to_tuple(tl(H))
+      Ref = make_ref(),
+      Server ! {self(), Ref, done, Mode, list_to_tuple(H)}
   end.
 
 %%--------------------------------------------------------------------
@@ -92,7 +91,7 @@ locate(Mode, Template) when is_tuple(Template) ->
 %%--------------------------------------------------------------------
 -spec rd(Template :: tuple(), Caller :: pid()) -> done.
 
-rd(Template, Caller) ->
+rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
@@ -106,10 +105,10 @@ rd(Template, Caller) ->
 %% @spec rdp(Template) -> {ok, Tuple} | {ok, undefined}
 %% @end
 %%--------------------------------------------------------------------
--spec rdp(Template :: term()) -> {ok, Tuple :: tuple() | undefined}.
+-spec rdp(Template :: term(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','undefined' | tuple()}.
 
-rdp(Template) ->
-  locate(rdp, Template).
+rdp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+  locate(rdp, Template, Caller).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -119,7 +118,7 @@ rdp(Template) ->
 %% @spec eval(Specification, State) -> ok
 %% @end
 %%--------------------------------------------------------------------
--spec eval(Specification :: tuple()) -> ok.
+-spec eval(Specification :: tuple()) -> Tuple :: tuple().
 
 eval(Specification) when is_tuple(Specification) ->
   F = fun
@@ -129,9 +128,7 @@ eval(Specification) when is_tuple(Specification) ->
       E
   end,
   L = tuple_to_list(Specification),
-  Tuple = list_to_tuple(utilities:pmap(F, L)),
-  ok = out(Tuple),
-  ok.
+  out(list_to_tuple(utilities:pmap(F, L))).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -140,22 +137,24 @@ eval(Specification) when is_tuple(Specification) ->
 %% @spec count(Template) -> Count
 %% @end
 %%--------------------------------------------------------------------
--spec count(Template :: tuple()) -> number().
+-spec count(Template :: tuple(), Caller :: pid() | port() | {atom(),atom()}) ->
+  {pid(),reference(),'done','count',non_neg_integer()}.
 
-count(Template) ->
+count(Template, Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  Selections = find_all_selections(MatchHead, Guard),
+  Selections = find_all_selections(Caller, MatchHead, Guard),
   %% Second pass to deal with string and functions
   TemplateFuns = funky([any] ++ TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
-  length(Matches).
+  Ref = make_ref(),
+  Caller ! {self(), Ref, done, count, length(Matches)}.
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
 selector(Mode, TemplateList, MatchHead, Guard, Server, []) ->
-  Selections = find_all_selections(MatchHead, Guard),
+  Selections = find_all_selections(Server, MatchHead, Guard),
   %% Second pass to deal with string and functions
   TemplateFuns = funky(TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
@@ -163,12 +162,18 @@ selector(Mode, TemplateList, MatchHead, Guard, Server, []) ->
   selector(Mode, TemplateList, MatchHead, Guard, Server, Matches);
 
 selector(Mode, _TemplateList, _MatchHead, _Guard, Server, [H|_]) ->
-  Server ! {self(), done, Mode, list_to_tuple(H)},
+  Ref = make_ref(),
+  Server ! {self(), Ref, done, Mode, list_to_tuple(H)},
   done.
 
-find_all_selections(MatchHead, Guard) ->
+find_all_selections(Server, MatchHead, Guard) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],
-  ets:select(tuples, MatchSpec).
+  Ref = make_ref(),
+  Server ! {self(), Ref, query, MatchSpec},
+  receive
+    {selected, Ref, Selections} ->
+      Selections
+  end.
 
 make_guard(TemplateList) ->
   Mapper = fun (E, I) -> guard(E, I + 1) end,

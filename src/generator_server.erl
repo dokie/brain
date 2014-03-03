@@ -33,7 +33,7 @@
 generate(GeneratorName) ->
   gen_server:cast(GeneratorName, generate).
 
--spec(stop(GeneratorName :: atom()) -> {stop, normal, State :: term()}).
+-spec(stop(GeneratorName :: atom() | pid() | { atom(), _} | {'via', _, _}) -> ok).
 stop(GeneratorName) ->
   gen_server:cast(GeneratorName, stop).
 
@@ -125,7 +125,7 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_info({generated, Product, GeneratedState}, State) ->
-  ok = tuple_space_server:out(Product),
+  {ok} = tuple_space_server:out(Product),
   NewState = State#state{generator_state = GeneratedState},
   {noreply, NewState};
 

@@ -18,6 +18,7 @@
 init(_Options) ->
   [{simple_product, float}].
 
--spec(extract(Extractants :: list(tuple)) -> no_return()).
+-spec(extract(Extractants :: [{'simple_product',float()},...]) -> ok).
 extract([{simple_product, X}]) when is_float(X) ->
-  io:format("Extracted ~p~n", [{simple_product, X}]).
+  io:format("Extracted ~p~n", [{simple_product, X}]),
+  ok.

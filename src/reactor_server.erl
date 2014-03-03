@@ -29,7 +29,7 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
--spec(stop(ReactorName :: atom()) -> {stop, normal, State :: term()}).
+-spec(stop(ReactorName :: atom() | pid() | { atom(), _} | {'via', _, _}) -> ok).
 stop(ReactorName) ->
   gen_server:cast(ReactorName, stop).
 

@@ -12,6 +12,6 @@
 %% Behaviour
 -callback init(Options :: list(term())) -> Templates :: list(tuple()).
 
--callback react(From :: pid(), Reactants :: list(tuple())) -> no_return().
+-callback react(From :: atom() | pid() | port() | {atom(),atom()}, Reactants :: list(tuple())) -> ok.
 
 
