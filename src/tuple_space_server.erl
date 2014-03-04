@@ -61,7 +61,7 @@ stop() ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(out(Tuple :: tuple()) -> {ok}).
+-spec(out(Tuple :: tuple()) -> ok).
 
 out(Tuple) when is_tuple(Tuple) ->
   gen_server:call(?SERVER, {out, Tuple}).
