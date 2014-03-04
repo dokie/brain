@@ -47,36 +47,36 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, []).
+  Ref = make_ref(),
+  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, []).
 
 %%--------------------------------------------------------------------
 %% @doc
 %% Get a Tuple from the Tuplespace based upon a template
-%% This is a non-blocking call so will return undefined if no match.
+%% This is a non-blocking call so will return null if no match.
 %%
-%% @spec inp(Template) -> {ok, Tuple} | {ok, undefined}
+%% @spec inp(Template) -> {ok, Tuple} | {ok, null}
 %% @end
 %%--------------------------------------------------------------------
--spec inp(Template :: tuple(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','undefined' | tuple()}.
+-spec inp(Template :: tuple(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','null' | tuple()}.
 
 inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  locate(inp, Template, Caller).
+  Ref = make_ref(),
+  locate(inp, Template, Caller, Ref).
 
-locate(Mode, Template, Server) when is_tuple(Template), is_pid(Server) ->
+locate(Mode, Template, Server, Ref) when is_tuple(Template), is_pid(Server) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  Selections = find_all_selections(Server, MatchHead, Guard),
+  Selections = find_all_selections(Server, MatchHead, Guard, Ref),
   %% Second pass to deal with string and functions
   TemplateFuns = funky([any] ++ TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
   case Matches of
     [] ->
-      Ref = make_ref(),
-      Server ! {self(), Ref, done, Mode, undefined};
+      Server ! {self(), Ref, done, Mode, null};
 
     [H | _] ->
-      Ref = make_ref(),
       Server ! {self(), Ref, done, Mode, list_to_tuple(H)}
   end.
 
@@ -92,23 +92,25 @@ locate(Mode, Template, Server) when is_tuple(Template), is_pid(Server) ->
 -spec rd(Template :: tuple(), Caller :: pid()) -> done.
 
 rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+  Ref = make_ref(),
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Caller, []).
+  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, []).
 
 %%--------------------------------------------------------------------
 %% @doc
 %% Read a Tuple from the Tuplespace based upon a template
-%% This is a non-blocking call so will return undefined if no match.
+%% This is a non-blocking call so will return null if no match.
 %%
-%% @spec rdp(Template) -> {ok, Tuple} | {ok, undefined}
+%% @spec rdp(Template) -> {ok, Tuple} | {ok, null}
 %% @end
 %%--------------------------------------------------------------------
--spec rdp(Template :: term(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','undefined' | tuple()}.
+-spec rdp(Template :: term(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','null' | tuple()}.
 
 rdp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  locate(rdp, Template, Caller).
+  Ref = make_ref(),
+  locate(rdp, Template, Caller, Ref).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -141,34 +143,32 @@ eval(Specification) when is_tuple(Specification) ->
   {pid(),reference(),'done','count',non_neg_integer()}.
 
 count(Template, Caller) ->
+  Ref = make_ref(),
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  Selections = find_all_selections(Caller, MatchHead, Guard),
+  Selections = find_all_selections(Caller, MatchHead, Guard, Ref),
   %% Second pass to deal with string and functions
   TemplateFuns = funky([any] ++ TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
-  Ref = make_ref(),
   Caller ! {self(), Ref, done, count, length(Matches)}.
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
-selector(Mode, TemplateList, MatchHead, Guard, Server, []) ->
-  Selections = find_all_selections(Server, MatchHead, Guard),
+selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, []) ->
+  Selections = find_all_selections(Server, MatchHead, Guard, Ref),
   %% Second pass to deal with string and functions
   TemplateFuns = funky(TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
   timer:sleep(?WAIT),
-  selector(Mode, TemplateList, MatchHead, Guard, Server, Matches);
+  selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Matches);
 
-selector(Mode, _TemplateList, _MatchHead, _Guard, Server, [H|_]) ->
-  Ref = make_ref(),
+selector(Mode, _TemplateList, _MatchHead, _Guard, Server, Ref, [H|_]) ->
   Server ! {self(), Ref, done, Mode, list_to_tuple(H)},
   done.
 
-find_all_selections(Server, MatchHead, Guard) ->
+find_all_selections(Server, MatchHead, Guard, Ref) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],
-  Ref = make_ref(),
   Server ! {self(), Ref, query, MatchSpec},
   receive
     {selected, Ref, Selections} ->

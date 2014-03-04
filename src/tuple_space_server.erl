@@ -27,7 +27,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(tuplespace, {tuples, requests}).
+-record(tuplespace, {tuples, tuple_requests, tuple_queries}).
 
 %%%===================================================================
 %%% API
@@ -64,7 +64,7 @@ stop() ->
 -spec(out(Tuple :: tuple()) -> ok).
 
 out(Tuple) when is_tuple(Tuple) ->
-  gen_server:call(?SERVER, {out, Tuple}).
+  gen_server:cast(?SERVER, {out, Tuple}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -86,7 +86,7 @@ in(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 
 %%--------------------------------------------------------------------
 %% @doc
 %% Gets a Tuple from the Tuplespace that matches a Template
-%% Non Blocking Call which returns undefined if no Tuple matches
+%% Non Blocking Call which returns null if no Tuple matches
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -115,7 +115,7 @@ rd(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 
 %%--------------------------------------------------------------------
 %% @doc
 %% Reads a Tuple from the Tuplespace that matches a Template
-%% and leaves it there - Blocking Call which returns undefined if no Tuple matches
+%% and leaves it there - Blocking Call which returns null if no Tuple matches
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -134,7 +134,7 @@ rdp(Template) when is_tuple(Template) ->
 -spec(eval(Specification :: tuple()) -> {ok} | {noreply, term(), timeout()}).
 
 eval(Specification) when is_tuple(Specification) ->
-  gen_server:call(?SERVER, {eval, Specification}).
+  gen_server:cast(?SERVER, {eval, Specification}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -167,7 +167,9 @@ count(Template) when is_tuple(Template) ->
   {stop, Reason :: term()} | ignore).
 init([]) ->
   {ok, #tuplespace{tuples = ets:new(tuples, [bag, named_table]),
-              requests = ets:new(requests, [bag, named_table])}}.
+              tuple_requests = ets:new(tuple_requests, [bag, named_table]),
+              tuple_queries = ets:new(tuple_queries, [bag, named_table])
+  }}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -185,39 +187,29 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #tuplespace{}} |
   {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
-handle_call({out, Tuple}, _From, State) ->
-  ToStore = tuple_space:out(Tuple),
-  ets:insert(tuples, ToStore),
-  {reply, ok, State};
-
 handle_call({in, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, in, [Template, self()]),
-  ets:insert(requests, {Pid, From}),
+  ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
 handle_call({inp, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, inp, [Template, self()]),
-  ets:insert(requests, {Pid, From}),
+  ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
 handle_call({rd, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, rd, [Template, self()]),
-  ets:insert(requests, {Pid, From}),
+  ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
 handle_call({rdp, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, rdp, [Template, self()]),
-  ets:insert(requests, {Pid, From}),
+  ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
-
-handle_call({eval, Specification}, _From, State) ->
-  ToStore = tuple_space:eval(Specification),
-  ets:insert(tuples, ToStore),
-  {reply, ok, State};
 
 handle_call(stop, _From, State) ->
   {stop, normal,ok, State};
@@ -225,7 +217,7 @@ handle_call(stop, _From, State) ->
 handle_call({count, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, count, [Template, self()]),
-  ets:insert(requests, {Pid, From}),
+  ets:insert(tuple_requests, {Pid, From}),
   {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -239,6 +231,17 @@ handle_call({count, Template}, From, State) ->
   {noreply, NewState :: #tuplespace{}} |
   {noreply, NewState :: #tuplespace{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #tuplespace{}}).
+
+handle_cast({out, Tuple}, State) ->
+  ToStore = tuple_space:out(Tuple),
+  ets:insert(tuples, ToStore),
+  {noreply,State};
+
+handle_cast({eval, Specification}, State) ->
+  ToStore = tuple_space:eval(Specification),
+  ets:insert(tuples, ToStore),
+  {noreply, State};
+
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -257,73 +260,123 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #tuplespace{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
-handle_info({Worker, _Ref, done, in, Tuple}, State) ->
-  Request = ets:lookup(requests, Worker),
+handle_info({Worker, Ref, done, in, Tuple}, State) ->
+  Request = ets:lookup(tuple_requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  reply_to_request(Request, State, Stripped),
-  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  case ets:lookup(tuple_queries, Ref) of
+    [{Ref, _Spec}] ->
+      ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+      reply_to_request(Request, Stripped),
+      ets:delete(tuple_queries, Ref);
+    [] ->
+      ok
+  end,
   {noreply, State};
 
-handle_info({Worker, _Ref, done, inp, undefined}, State) ->
-  Request = ets:lookup(requests, Worker),
-  reply_to_request(Request, State, undefined),
+handle_info({Worker, Ref, done, inp, null}, State) ->
+  Request = ets:lookup(tuple_requests, Worker),
+  case ets:lookup(tuple_queries, Ref) of
+    [{Ref, _Spec}] ->
+      reply_to_request(Request, null),
+      ets:delete(tuple_queries, Ref);
+    [] ->
+      ok
+  end,
   {noreply, State};
 
-handle_info({Worker, _Ref, done, inp, Tuple}, State) ->
-  Request = ets:lookup(requests, Worker),
+handle_info({Worker, Ref, done, inp, Tuple}, State) ->
+  Request = ets:lookup(tuple_requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  reply_to_request(Request, State, Stripped),
-  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  case ets:lookup(tuple_queries, Ref) of
+    [{Ref, _Spec}] ->
+      ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+      reply_to_request(Request, Stripped),
+      ets:delete(tuple_queries, Ref);
+    [] ->
+      ok
+  end,
   {noreply, State};
 
 handle_info({Worker, Ref, query, Spec}, State) ->
-  Selections = ets:select(tuples, Spec),
+  Selections = case ets:first(tuple_queries) of
+    '$end_of_table' ->
+      ets:insert(tuple_queries, {Ref, Spec}),
+      ets:select(tuples, Spec);
+    Ref ->
+      ets:select(tuples, Spec);
+    _ ->
+      []
+  end,
   Worker ! {selected, Ref, Selections},
   {noreply, State};
 
-handle_info({Worker, _Ref, done, rd, Tuple}, State) ->
-  Request = ets:lookup(requests, Worker),
+handle_info({Worker, Ref, done, rd, Tuple}, State) ->
+  Request = ets:lookup(tuple_requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  reply_to_request(Request, State, Stripped),
+  case ets:lookup(tuple_queries, Ref) of
+    [{Ref, _Spec}] ->
+      reply_to_request(Request, Stripped),
+      ets:delete(tuple_queries, Ref);
+    [] ->
+      ok
+  end,
   {noreply, State};
 
-handle_info({Worker, _Ref, done, rdp, undefined}, State) ->
-  Request = ets:lookup(requests, Worker),
-  reply_to_request(Request, State, undefined),
+handle_info({Worker, Ref, done, rdp, null}, State) ->
+  Request = ets:lookup(tuple_requests, Worker),
+  case ets:lookup(tuple_queries, Ref) of
+    [{Ref, _Spec}] ->
+      reply_to_request(Request, null),
+      ets:delete(tuple_queries, Ref);
+    [] ->
+      ok
+  end,
   {noreply, State};
 
-handle_info({Worker, _Ref, done, rdp, Tuple}, State) ->
-  Request = ets:lookup(requests, Worker),
+handle_info({Worker, Ref, done, rdp, Tuple}, State) ->
+  Request = ets:lookup(tuple_requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  reply_to_request(Request, State, Stripped),
+  case ets:lookup(tuple_queries, Ref) of
+    [{Ref, _Spec}] ->
+      reply_to_request(Request, Stripped),
+      ets:delete(tuple_queries, Ref);
+    [] ->
+      ok
+  end,
   {noreply, State};
 
-handle_info({Worker, _Ref, done, count, Count}, State) ->
-  Request = ets:lookup(requests, Worker),
-  reply_to_request(Request, State, Count),
+handle_info({Worker, Ref, done, count, Count}, State) ->
+  Request = ets:lookup(tuple_requests, Worker),
+  case ets:lookup(tuple_queries, Ref) of
+    [{Ref, _Spec}] ->
+      reply_to_request(Request, Count),
+      ets:delete(tuple_queries, Ref);
+    [] ->
+      ok
+  end,
   {noreply, State};
 
 handle_info({'EXIT', _Pid, normal}, State) ->
   {noreply, State};
 
 handle_info({'EXIT', Pid, _}, State) ->
-  InRequest = ets:lookup(requests, Pid),
-  ok = reply_to_request(InRequest, State, undefined),
+  InRequest = ets:lookup(tuple_requests, Pid),
+  ok = reply_to_request(InRequest, null),
   {noreply, State}.
 
-reply_to_request([], _State, _Reply) ->
-  cleanup_request([], _State);
+reply_to_request([], _Reply) ->
+  cleanup_request([]);
 
-reply_to_request([{Worker, Client}], State, Reply) ->
-  ok = cleanup_request([{Worker, Client}], State),
+reply_to_request([{Worker, Client}], Reply) ->
+  ok = cleanup_request([{Worker, Client}]),
   gen_server:reply(Client, Reply),
   ok.
 
-cleanup_request([], _State) ->
+cleanup_request([]) ->
   ok;
 
-cleanup_request([{Worker, _}], _State) ->
-  ets:delete(requests, Worker),
+cleanup_request([{Worker, _}]) ->
+  ets:delete(tuple_requests, Worker),
   ok.
 
 %%--------------------------------------------------------------------
@@ -340,7 +393,8 @@ cleanup_request([{Worker, _}], _State) ->
 -spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
     State :: #tuplespace{}) -> term()).
 terminate(_Reason, _State) ->
-  ets:delete(requests),
+  ets:delete(tuple_requests),
+  ets:delete(tuple_queries),
   ets:delete(tuples),
   ok.
 

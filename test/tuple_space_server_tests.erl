@@ -63,7 +63,7 @@ exact_in(_Pid) ->
   Match = ?SERVER:in({"Yo yo", 99, <<"BS">>, 1.23}),
   Second = ?SERVER:inp(Tuple),
   [?_assertEqual(Tuple, Match),
-   ?_assertEqual(undefined, Second)].
+   ?_assertEqual(null, Second)].
 
 match_first_string_in(_Pid) ->
   Tuple = {"Yo yo", 1, 3.14},
@@ -121,7 +121,7 @@ bad_template(_Pid) ->
   ok = ?SERVER:out(Tuple),
   Bad = {any, fun (_X) -> 1/0 end},
   Match = ?SERVER:in(Bad),
-  [?_assertEqual(undefined, Match)].
+  [?_assertEqual(null, Match)].
 
 tuple_space_inp_test_() ->
   [{"Test of inp with exact Tuple",
@@ -139,7 +139,7 @@ exact_inp(_Pid) ->
   Match = ?SERVER:inp(Tuple),
   Second = ?SERVER:inp(Tuple),
   [?_assertEqual(Tuple, Match),
-   ?_assertEqual(undefined, Second)].
+   ?_assertEqual(null, Second)].
 
 match_second_int_inp(_Pid) ->
   Tuple = {"Yo yo", 42, 3.14},
@@ -151,13 +151,13 @@ mismatch_tuple_inp(_Pid) ->
   Tuple = {"Yo yo", 99, <<"BS">>, 1.23},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:inp({string, fun (E) -> E =:= 99 end, binary}),
-  [?_assertEqual(undefined, Match)].
+  [?_assertEqual(null, Match)].
 
 no_match_inp(_Pid) ->
   Tuple = {"The Edge", 999, 3.14},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:inp({any, integer, string}),
-  [?_assertEqual(undefined, Match)].
+  [?_assertEqual(null, Match)].
 
 tuple_space_rd_test_() ->
   [{"Test of rd with exact match",
@@ -268,7 +268,7 @@ no_match_rdp(_Pid) ->
   Tuple = {<<1,2>>, "FFF", []},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:rdp({binary, integer, string}),
-  [?_assertEqual(undefined, Match)].
+  [?_assertEqual(null, Match)].
 
 tuple_space_eval_test_() ->
   [{"Test of simple eval",
@@ -338,13 +338,13 @@ simple_record(_Pid) ->
   [?_assertEqual(Point, Origin)].
 
 tuple_space_locking_test_() ->
-  [{"Test of dual in",
-   ?setup(fun locked_in/1)}].
+  [{"Test of dual inp",
+   ?setup(fun locked_inp/1)}].
 
-locked_in(_Pid) ->
+locked_inp(_Pid) ->
   ok = ?SERVER:out({dual, "Fuel"}),
-  Match = utilities:pmap(fun (_E) -> ?SERVER:in({dual, string}) end, lists:seq(1,5)),
+  Match = utilities:pmap(fun (_E) -> ?SERVER:inp({dual, string}) end, lists:seq(1,2)),
   ?debugFmt("~nMatch:~p~n", [Match]),
-  Count = length(lists:filter(fun (E) -> undefined =:= E end, Match)),
+  Count = length(lists:filter(fun (E) -> null =:= E end, Match)),
   [?_assertEqual(4, Count)].
 
