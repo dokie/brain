@@ -13,7 +13,7 @@
 
 
 %% API
--export([out/1, in/2, inp/2, rd/2, rdp/2, eval/1, count/2]).
+-export([out/1, in/2, in/3, inp/2, rd/2, rdp/2, eval/1, count/2, cleanup/1]).
 
 %% Definitions
 -define(WAIT, 50).
@@ -49,6 +49,19 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
   selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, true, []).
+
+in(Template, Caller, Timeout) when is_tuple(Template), is_pid(Caller), is_number(Timeout) ->
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  TemplateList = tuple_to_list(Template),
+  Guard = make_guard(TemplateList),
+  Ref = make_ref(),
+  timer:apply_after(Timeout-10, ?MODULE, cleanup, [Ref]),
+  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, true, []).
+
+cleanup(Ref) ->
+  Id = {tuples, Ref},
+  Nodes = [node()],
+  global:del_lock(Id, Nodes).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -167,13 +180,11 @@ count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
 selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Lock, []) ->
-  ?debugFmt("selector[]  - Lock:~p~n", [Lock]),
   Id = {tuples, Ref},
   Nodes = [node()],
   if Lock ->
     case global:set_lock(Id, Nodes) of
       true ->
-        ?debugFmt("selector[]  - Locked:~n", []),
         Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
         timer:sleep(?WAIT),
         selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, false, Matches);
@@ -182,14 +193,12 @@ selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Lock, []) ->
         timeout
     end;
   true ->
-    ?debugFmt("selector[]  - Lock:~p~n", [Lock]),
     Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
     timer:sleep(?WAIT),
     selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, false, Matches)
   end;
 
-selector(Mode, _TemplateList, _MatchHead, _Guard, Server, Ref, Lock, [H|_]) ->
-  ?debugFmt("selector[H|_]  - Lock:~p~n", [Lock]),
+selector(Mode, _TemplateList, _MatchHead, _Guard, Server, Ref, _Lock, [H|_]) ->
   Id = {tuples, Ref},
   Nodes = [node()],
   Server ! {self(), done, Mode, list_to_tuple(H)},

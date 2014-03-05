@@ -81,7 +81,7 @@ in(Template) when is_tuple(Template) ->
 -spec(in(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
 in(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 ->
-  gen_server:call(?SERVER, {in, Template}, Timeout).
+  gen_server:call(?SERVER, {in, Template, Timeout}, Timeout).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -189,6 +189,12 @@ init([]) ->
 handle_call({in, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, in, [Template, self()]),
+  ets:insert(tuple_requests, {Pid, From}),
+  {noreply, State};
+
+handle_call({in, Template, Timeout}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, in, [Template, self(), Timeout]),
   ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
