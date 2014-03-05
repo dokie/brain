@@ -2,7 +2,7 @@
              [{description,"The brain is a distributed Tuplespace"},
               {vsn,"0.0.2"},
               {registered,[brain]},
-              {applications,[kernel,stdlib]},
+              {applications,[kernel,stdlib,mnesia]},
               {mod,{brain_app,[]}},
               {env,[]},
               {modules,[brain_app,brain_sup,extractor,extractor_server,
