@@ -48,7 +48,7 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, []).
+  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, true, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -68,13 +68,22 @@ inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   locate(inp, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateList), is_pid(Server) ->
-  Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
-  case Matches of
-    [] ->
-      Server ! {self(), done, Mode, null};
+  Id = {tuples, Ref},
+  Nodes = [node()],
+  case global:set_lock(Id, Nodes) of
+    true ->
+      Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
+      case Matches of
+        [] ->
+          Server ! {self(), done, Mode, null};
 
-    [H|_] ->
-      Server ! {self(), done, Mode, list_to_tuple(H)}
+        [H|_] ->
+          Server ! {self(), done, Mode, list_to_tuple(H)}
+      end,
+      global:del_lock(Id, Nodes);
+
+    false ->
+      timeout
   end.
 
 execute_query(Server, MatchHead, Guard, Ref, TemplateList) ->
@@ -99,7 +108,7 @@ rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, []).
+  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, true, []).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -157,13 +166,34 @@ count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
-selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, []) ->
-  Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
-  timer:sleep(?WAIT),
-  selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Matches);
+selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Lock, []) ->
+  ?debugFmt("selector[]  - Lock:~p~n", [Lock]),
+  Id = {tuples, Ref},
+  Nodes = [node()],
+  if Lock ->
+    case global:set_lock(Id, Nodes) of
+      true ->
+        ?debugFmt("selector[]  - Locked:~n", []),
+        Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
+        timer:sleep(?WAIT),
+        selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, false, Matches);
 
-selector(Mode, _TemplateList, _MatchHead, _Guard, Server, _Ref, [H|_]) ->
+      false ->
+        timeout
+    end;
+  true ->
+    ?debugFmt("selector[]  - Lock:~p~n", [Lock]),
+    Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
+    timer:sleep(?WAIT),
+    selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, false, Matches)
+  end;
+
+selector(Mode, _TemplateList, _MatchHead, _Guard, Server, Ref, Lock, [H|_]) ->
+  ?debugFmt("selector[H|_]  - Lock:~p~n", [Lock]),
+  Id = {tuples, Ref},
+  Nodes = [node()],
   Server ! {self(), done, Mode, list_to_tuple(H)},
+  global:del_lock(Id, Nodes),
   done.
 
 find_all_selections(Server, MatchHead, Guard, Ref) ->

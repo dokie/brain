@@ -5,8 +5,7 @@
    {registered, [brain]},
    {applications, [
                   kernel,
-                  stdlib,
-                  mnesia
+                  stdlib
                  ]},
    {mod, { brain_app, []}},
    {env, []}
