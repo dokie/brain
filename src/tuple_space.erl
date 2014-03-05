@@ -61,24 +61,27 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 -spec inp(Template :: tuple(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','null' | tuple()}.
 
 inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  Ref = make_ref(),
-  locate(inp, Template, Caller, Ref).
-
-locate(Mode, Template, Server, Ref) when is_tuple(Template), is_pid(Server) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  Selections = find_all_selections(Server, MatchHead, Guard, Ref),
-  %% Second pass to deal with string and functions
-  TemplateFuns = funky([any] ++ TemplateList),
-  Matches = find_all_matches(TemplateFuns, Selections),
+  Ref = make_ref(),
+  locate(inp, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+
+locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateList), is_pid(Server) ->
+  Matches = execute_query(Mode, Server, MatchHead, Guard, Ref, TemplateList),
   case Matches of
     [] ->
       Server ! {self(), Ref, done, Mode, null};
 
-    [H | _] ->
+    [H|_] ->
       Server ! {self(), Ref, done, Mode, list_to_tuple(H)}
   end.
+
+execute_query(Mode, Server, MatchHead, Guard, Ref, TemplateList) ->
+  Selections = find_all_selections(Mode, Server, MatchHead, Guard, Ref),
+  TemplateFuns = funky(TemplateList),
+  Matches = find_all_matches(TemplateFuns, Selections),
+  Matches.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -109,8 +112,10 @@ rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 -spec rdp(Template :: term(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','null' | tuple()}.
 
 rdp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  Ref = make_ref(),
-  locate(rdp, Template, Caller, Ref).
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  TemplateList = tuple_to_list(Template),
+  Guard = make_guard(TemplateList),  Ref = make_ref(),
+  locate(rdp, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -142,24 +147,18 @@ eval(Specification) when is_tuple(Specification) ->
 -spec count(Template :: tuple(), Caller :: pid() | port() | {atom(),atom()}) ->
   {pid(),reference(),'done','count',non_neg_integer()}.
 
-count(Template, Caller) ->
-  Ref = make_ref(),
+count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  Selections = find_all_selections(Caller, MatchHead, Guard, Ref),
-  %% Second pass to deal with string and functions
-  TemplateFuns = funky([any] ++ TemplateList),
-  Matches = find_all_matches(TemplateFuns, Selections),
+  Ref = make_ref(),
+  Matches = execute_query(count, Caller, MatchHead, Guard, Ref, [any] ++ TemplateList),
   Caller ! {self(), Ref, done, count, length(Matches)}.
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
 selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, []) ->
-  Selections = find_all_selections(Server, MatchHead, Guard, Ref),
-  %% Second pass to deal with string and functions
-  TemplateFuns = funky(TemplateList),
-  Matches = find_all_matches(TemplateFuns, Selections),
+  Matches = execute_query(Mode, Server, MatchHead, Guard, Ref, TemplateList),
   timer:sleep(?WAIT),
   selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Matches);
 
@@ -167,9 +166,9 @@ selector(Mode, _TemplateList, _MatchHead, _Guard, Server, Ref, [H|_]) ->
   Server ! {self(), Ref, done, Mode, list_to_tuple(H)},
   done.
 
-find_all_selections(Server, MatchHead, Guard, Ref) ->
+find_all_selections(Mode, Server, MatchHead, Guard, Ref) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],
-  Server ! {self(), Ref, query, MatchSpec},
+  Server ! {self(), Ref, query, Mode, MatchSpec},
   receive
     {selected, Ref, Selections} ->
       Selections
