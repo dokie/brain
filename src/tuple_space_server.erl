@@ -27,7 +27,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(tuplespace, {tuples, tuple_requests, tuple_queries}).
+-record(tuplespace, {tuples, tuple_requests}).
 
 %%%===================================================================
 %%% API
@@ -167,8 +167,7 @@ count(Template) when is_tuple(Template) ->
   {stop, Reason :: term()} | ignore).
 init([]) ->
   {ok, #tuplespace{tuples = ets:new(tuples, [bag, named_table]),
-              tuple_requests = ets:new(tuple_requests, [bag, named_table]),
-              tuple_queries = ets:new(tuple_queries, [bag, named_table])
+              tuple_requests = ets:new(tuple_requests, [bag, named_table])
   }}.
 
 %%--------------------------------------------------------------------
@@ -261,70 +260,38 @@ handle_cast(_Request, State) ->
   {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
 %% --------------- QUERYING ------------------------------------
-handle_info({Worker, Ref, query, Mode, Spec}, State) ->
-  Selections =
-    case lists:member(Mode, [in, inp]) of
-      true ->
-        case ets:first(tuple_queries) of
-                 '$end_of_table' ->
-                   ets:insert(tuple_queries, {Ref, Spec}),
-                   ets:select(tuples, Spec);
-                 Ref ->
-                   ets:select(tuples, Spec);
-                 _ ->
-                   []
-        end;
-      false ->
-        ets:select(tuples, Spec)
-    end,
+handle_info({Worker, Ref, query, Spec}, State) ->
+  Selections = ets:select(tuples, Spec),
   Worker ! {selected, Ref, Selections},
   {noreply, State};
 
 %% --------------- SENDING BACK --------------------------------
-handle_info({Worker, Ref, done, in, Tuple}, State) ->
+handle_info({Worker, done, in, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  case ets:lookup(tuple_queries, Ref) of
-    [{Ref, _Spec}] ->
-      ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
-      reply_to_request(Request, Stripped),
-      ets:delete(tuple_queries, Ref);
-    [] ->
-      cleanup_request(Worker),
-      ok
-  end,
+  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  reply_to_request(Request, Stripped),
+  cleanup_request(Worker),
   {noreply, State};
 
-handle_info({Worker, Ref, done, inp, null}, State) ->
+handle_info({Worker, done, inp, null}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
-  case ets:lookup(tuple_queries, Ref) of
-    [{Ref, _Spec}] ->
-      reply_to_request(Request, null),
-      ets:delete(tuple_queries, Ref);
-    [] ->
-      ok
-  end,
+  reply_to_request(Request, null),
   {noreply, State};
 
-handle_info({Worker, Ref, done, inp, Tuple}, State) ->
+handle_info({Worker, done, inp, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
-  case ets:lookup(tuple_queries, Ref) of
-    [{Ref, _Spec}] ->
-      ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
-      reply_to_request(Request, Stripped),
-      ets:delete(tuple_queries, Ref);
-    [] ->
-      ok
-  end,
+  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  reply_to_request(Request, Stripped),
   {noreply, State};
 
-handle_info({Worker, _Ref, done, count, Count}, State) ->
+handle_info({Worker, done, count, Count}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   reply_to_request(Request, Count),
   {noreply, State};
 
-handle_info({Worker, _Ref, done, _Mode, Tuple}, State) ->
+handle_info({Worker, done, _Mode, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   Result =
   if is_tuple(Tuple) ->
@@ -370,7 +337,6 @@ cleanup_request(Worker) ->
     State :: #tuplespace{}) -> term()).
 terminate(_Reason, _State) ->
   ets:delete(tuple_requests),
-  ets:delete(tuple_queries),
   ets:delete(tuples),
   ok.
 

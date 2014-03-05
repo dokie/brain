@@ -68,17 +68,17 @@ inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   locate(inp, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateList), is_pid(Server) ->
-  Matches = execute_query(Mode, Server, MatchHead, Guard, Ref, TemplateList),
+  Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
   case Matches of
     [] ->
-      Server ! {self(), Ref, done, Mode, null};
+      Server ! {self(), done, Mode, null};
 
     [H|_] ->
-      Server ! {self(), Ref, done, Mode, list_to_tuple(H)}
+      Server ! {self(), done, Mode, list_to_tuple(H)}
   end.
 
-execute_query(Mode, Server, MatchHead, Guard, Ref, TemplateList) ->
-  Selections = find_all_selections(Mode, Server, MatchHead, Guard, Ref),
+execute_query(Server, MatchHead, Guard, Ref, TemplateList) ->
+  Selections = find_all_selections(Server, MatchHead, Guard, Ref),
   TemplateFuns = funky(TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
   Matches.
@@ -152,23 +152,23 @@ count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  Matches = execute_query(count, Caller, MatchHead, Guard, Ref, [any] ++ TemplateList),
-  Caller ! {self(), Ref, done, count, length(Matches)}.
+  Matches = execute_query(Caller, MatchHead, Guard, Ref, [any] ++ TemplateList),
+  Caller ! {self(), done, count, length(Matches)}.
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
 selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, []) ->
-  Matches = execute_query(Mode, Server, MatchHead, Guard, Ref, TemplateList),
+  Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
   timer:sleep(?WAIT),
   selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Matches);
 
-selector(Mode, _TemplateList, _MatchHead, _Guard, Server, Ref, [H|_]) ->
-  Server ! {self(), Ref, done, Mode, list_to_tuple(H)},
+selector(Mode, _TemplateList, _MatchHead, _Guard, Server, _Ref, [H|_]) ->
+  Server ! {self(), done, Mode, list_to_tuple(H)},
   done.
 
-find_all_selections(Mode, Server, MatchHead, Guard, Ref) ->
+find_all_selections(Server, MatchHead, Guard, Ref) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],
-  Server ! {self(), Ref, query, Mode, MatchSpec},
+  Server ! {self(), Ref, query, MatchSpec},
   receive
     {selected, Ref, Selections} ->
       Selections

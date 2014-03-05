@@ -343,7 +343,7 @@ tuple_space_locking_test_() ->
 
 locked_inp(_Pid) ->
   ok = ?SERVER:out({dual, "Fuel"}),
-  Match = utilities:pmap(fun (_E) -> ?SERVER:inp({dual, string}) end, lists:seq(1,2)),
+  Match = utilities:pmap(fun (_E) -> ?SERVER:inp({dual, string}) end, lists:seq(1,5)),
   ?debugFmt("~nMatch:~p~n", [Match]),
   Count = length(lists:filter(fun (E) -> null =:= E end, Match)),
   [?_assertEqual(4, Count)].
