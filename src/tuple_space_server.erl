@@ -9,13 +9,11 @@
 -module(tuple_space_server).
 -author("mike").
 
--include_lib("eunit/include/eunit.hrl").
-
 -behaviour(gen_server).
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1, in/2, inp/1, rd/1, rd/2, rdp/1, eval/1, count/1]).
+-export([stop/0, out/1, in/1, inp/1, rd/1, rdp/1, eval/1, count/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -78,11 +76,6 @@ out(Tuple) when is_tuple(Tuple) ->
 in(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {in, Template}, infinity).
 
--spec(in(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
-
-in(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 ->
-  gen_server:call(?SERVER, {in, Template, Timeout}, Timeout).
-
 %%--------------------------------------------------------------------
 %% @doc
 %% Gets a Tuple from the Tuplespace that matches a Template
@@ -105,12 +98,7 @@ inp(Template) when is_tuple(Template) ->
 -spec(rd(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
 rd(Template) when is_tuple(Template) ->
-  gen_server:call(?SERVER, {rd, Template}, infinity).
-
--spec(rd(Template :: tuple(), Timeout :: timeout()) -> {term(), tuple()} | {noreply, term(), timeout()}).
-
-rd(Template, Timeout) when is_tuple(Template), is_integer(Timeout), Timeout > 0 ->
-  gen_server:call(?SERVER, {rd, Template}, Timeout).
+  gen_server:call(?SERVER, {rd, Template}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -189,12 +177,6 @@ init([]) ->
 handle_call({in, Template}, From, State) ->
   process_flag(trap_exit, true),
   Pid = spawn_link(tuple_space, in, [Template, self()]),
-  ets:insert(tuple_requests, {Pid, From}),
-  {noreply, State};
-
-handle_call({in, Template, Timeout}, From, State) ->
-  process_flag(trap_exit, true),
-  Pid = spawn_link(tuple_space, in, [Template, self(), Timeout]),
   ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 

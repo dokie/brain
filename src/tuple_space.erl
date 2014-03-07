@@ -9,11 +9,8 @@
 -module(tuple_space).
 -author("mike").
 
--include_lib("eunit/include/eunit.hrl").
-
-
 %% API
--export([out/1, in/2, in/3, inp/2, rd/2, rdp/2, eval/1, count/2, cleanup/1]).
+-export([out/1, in/2, inp/2, rd/2, rdp/2, eval/1, count/2]).
 
 %% Definitions
 -define(WAIT, 50).
@@ -36,7 +33,7 @@ out(Tuple) ->
 %%--------------------------------------------------------------------
 %% @doc
 %% Read a Tuple from the Tuplespace based upon a template
-%% This is a blocking call so we can pass a timeout value additionally.
+%% This is a blocking call.
 %%
 %% @spec in(Template, Caller) -> done.
 %% @end
@@ -48,20 +45,7 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, true, []).
-
-in(Template, Caller, Timeout) when is_tuple(Template), is_pid(Caller), is_number(Timeout) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
-  TemplateList = tuple_to_list(Template),
-  Guard = make_guard(TemplateList),
-  Ref = make_ref(),
-  timer:apply_after(Timeout-10, ?MODULE, cleanup, [Ref]),
-  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, true, []).
-
-cleanup(Ref) ->
-  Id = {tuples, Ref},
-  Nodes = [node()],
-  global:del_lock(Id, Nodes).
+  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -96,7 +80,7 @@ locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateL
       global:del_lock(Id, Nodes);
 
     false ->
-      timeout
+      nolock
   end.
 
 execute_query(Server, MatchHead, Guard, Ref, TemplateList) ->
@@ -109,7 +93,7 @@ execute_query(Server, MatchHead, Guard, Ref, TemplateList) ->
 %% @doc
 %% Read a Tuple from the Tuplespace based upon a template but leave it
 %% in the Tuplespace
-%% This is a blocking call so we can pass a timeout value additionally.
+%% This is a blocking call..
 %%
 %% @spec rd(Template, Caller) -> done.
 %% @end
@@ -121,7 +105,7 @@ rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref, true, []).
+  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -174,36 +158,37 @@ count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  Matches = execute_query(Caller, MatchHead, Guard, Ref, [any] ++ TemplateList),
-  Caller ! {self(), done, count, length(Matches)}.
+  Id = {tuples, Ref},
+  Nodes = [node()],
+  case global:set_lock(Id, Nodes) of
+    true ->
+      Matches = execute_query(Caller, MatchHead, Guard, Ref, [any] ++ TemplateList),
+      Caller ! {self(), done, count, length(Matches)},
+      global:del_lock(Id, Nodes);
+    false ->
+      nolock
+  end.
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
-selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Lock, []) ->
+selector(Mode, TemplateList, MatchHead, Guard, Server, Ref) ->
   Id = {tuples, Ref},
   Nodes = [node()],
-  if Lock ->
-    case global:set_lock(Id, Nodes) of
-      true ->
-        Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
-        timer:sleep(?WAIT),
-        selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, false, Matches);
-
-      false ->
-        timeout
-    end;
-  true ->
-    Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
-    timer:sleep(?WAIT),
-    selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, false, Matches)
-  end;
-
-selector(Mode, _TemplateList, _MatchHead, _Guard, Server, Ref, _Lock, [H|_]) ->
-  Id = {tuples, Ref},
-  Nodes = [node()],
-  Server ! {self(), done, Mode, list_to_tuple(H)},
-  global:del_lock(Id, Nodes),
-  done.
+  case global:set_lock(Id, Nodes) of
+    true ->
+      case (execute_query(Server, MatchHead, Guard, Ref, TemplateList)) of
+        [] ->
+          global:del_lock(Id, Nodes),
+          timer:sleep(?WAIT),
+          selector(Mode, TemplateList, MatchHead, Guard, Server, Ref);
+        [H|_] ->
+          Server ! {self(), done, Mode, list_to_tuple(H)},
+          global:del_lock(Id, Nodes),
+          done
+      end;
+    false ->
+      nolock
+  end.
 
 find_all_selections(Server, MatchHead, Guard, Ref) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],

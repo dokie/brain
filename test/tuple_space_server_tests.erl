@@ -89,17 +89,9 @@ match_third_fun_in(_Pid) ->
   Match = ?SERVER:in({any, any, fun(X) -> X > 3.0 end}),
   [?_assertEqual(Tuple, Match)].
 
-tuple_space_in_timeout_test_() -> {
-  timeout, 30,
-  [{"Test of in with no exact match",
-   ?setup(fun no_match_inexact_in/1)},
-   {"Test of in with no exact match at first but appears later",
-   ?setup(fun no_match_at_first_in/1)}]}.
-
-no_match_inexact_in(_Pid) ->
-  Tuple = {"The Edge", 999, 3.14},
-  ok = ?SERVER:out(Tuple),
-  [?_assertExit({timeout, _}, ?SERVER:in({"The Edge", 999, 2.17}, 500))].
+tuple_space_in_later_test_() ->
+  [{"Test of in with no exact match at first but appears later",
+   ?setup(fun no_match_at_first_in/1)}].
 
 no_match_at_first_in(_Pid) ->
   BadTuple = {"The Edge", 999, 3.14},
@@ -181,7 +173,7 @@ no_match_at_first_rd(_Pid) ->
     timer:sleep(500),
     ?SERVER:out(GoodTuple)
   end),
-  Match = ?SERVER:rd({"The Edge", 999, 2.17}, 1500),
+  Match = ?SERVER:rd({"The Edge", 999, 2.17}),
   [?_assertEqual(GoodTuple, Match)].
 
 tuple_space_guard_test_() ->
@@ -189,18 +181,10 @@ tuple_space_guard_test_() ->
    ?setup(fun out_arg_not_tuple/1)},
    {"Test in without tuple",
    ?setup(fun in_arg_not_tuple/1)},
-   {"Test in with tuple but without integer timeout",
-   ?setup(fun in_arg_not_timeout/1)},
-   {"Test in with tuple but without valid integer timeout",
-   ?setup(fun in_arg_not_valid_timeout/1)},
    {"Test inp without tuple",
    ?setup(fun inp_arg_not_tuple/1)},
    {"Test rd without tuple",
    ?setup(fun rd_arg_not_tuple/1)},
-   {"Test rd with tuple but without integer timeout",
-   ?setup(fun rd_arg_not_timeout/1)},
-   {"Test rd with tuple but without valid integer timeout",
-   ?setup(fun rd_arg_not_valid_timeout/1)},
    {"Test rdp without tuple",
    ?setup(fun rdp_arg_not_tuple/1)}].
 
@@ -212,16 +196,6 @@ out_arg_not_tuple(_Pid) ->
   NotATuple = [1, 2, 3],
   [?_assertError(function_clause, ?SERVER:out(NotATuple))].
 
-in_arg_not_timeout(_Pid) ->
-  Template = {integer, any, float, "Hi"},
-  NotATimeout= 1.23,
-  [?_assertError(function_clause, ?SERVER:in(Template, NotATimeout))].
-
-in_arg_not_valid_timeout(_Pid) ->
-  Template = {integer, any, float, "Hi"},
-  NotATValidimeout = -1,
-  [?_assertError(function_clause, ?SERVER:in(Template, NotATValidimeout))].
-
 inp_arg_not_tuple(_Pid) ->
   NotATuple = <<"Binary">>,
   [?_assertError(function_clause, ?SERVER:inp(NotATuple))].
@@ -229,16 +203,6 @@ inp_arg_not_tuple(_Pid) ->
 rd_arg_not_tuple(_Pid) ->
   NotATuple = "no!",
   [?_assertError(function_clause, ?SERVER:rd(NotATuple))].
-
-rd_arg_not_timeout(_Pid) ->
-  Template = {integer, any, float, "Hi"},
-  NotATimeout= 1.23,
-  [?_assertError(function_clause, ?SERVER:rd(Template, NotATimeout))].
-
-rd_arg_not_valid_timeout(_Pid) ->
-  Template = {integer, any, float, "Hi"},
-  NotATValidimeout = -1,
-  [?_assertError(function_clause, ?SERVER:rd(Template, NotATValidimeout))].
 
 rdp_arg_not_tuple(_Pid) ->
   NotATuple = ok,
