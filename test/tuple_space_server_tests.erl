@@ -238,7 +238,9 @@ tuple_space_eval_test_() ->
   [{"Test of simple eval",
    ?setup(fun simple_eval/1)},
    {"Test of coupled eval",
-   ?setup(fun coupled_eval/1)}].
+   ?setup(fun coupled_eval/1)},
+   {"Test of random number eval",
+   ?setup(fun random_eval/1)}].
 
 simple_eval(_Pid) ->
   Generator = {"roots", fun() -> math:sqrt(4) end, fun () -> math:sqrt(9) end },
@@ -251,6 +253,14 @@ coupled_eval(_Pid) ->
   Generator = fun (I) -> ?SERVER:eval({"worker", fun() -> io:format("Hello ~w~n", [I]), "done" end}) end,
   utilities:pmap(Generator, lists:seq(1,10)),
   Match = utilities:pmap(fun (_E) -> ?SERVER:in({string, "done"}) end, lists:seq(1,10)),
+  [?_assertEqual(Expected, Match)].
+
+random_eval(_Pid) ->
+  Expected = [{random, true, false} || _I <- lists:seq(1,10)],
+  Generator = fun (_I) -> ?SERVER:eval({random, fun() -> random:uniform() end, fun() -> random:uniform(10) end}) end,
+  utilities:pmap(Generator, lists:seq(1,10)),
+  Found = utilities:pmap(fun (_E) -> ?SERVER:in({random, float, int}) end, lists:seq(1,10)),
+  Match = utilities:pmap(fun ({A, X, Y}) -> {A, is_float(X), Y > 10} end, Found),
   [?_assertEqual(Expected, Match)].
 
 tuple_space_count_test_() ->
