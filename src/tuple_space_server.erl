@@ -119,7 +119,7 @@ rdp(Template) when is_tuple(Template) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(eval(Specification :: tuple()) -> {ok} | {noreply, term(), timeout()}).
+-spec(eval(Specification :: tuple()) -> ok).
 
 eval(Specification) when is_tuple(Specification) ->
   gen_server:cast(?SERVER, {eval, Specification}).

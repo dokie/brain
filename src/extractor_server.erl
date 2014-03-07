@@ -24,7 +24,7 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {extractor_module, extractant_templates}).
+-record(state, {extractor_module :: atom(), extractant_templates :: list(tuple()) | []}).
 
 %%%===================================================================
 %%% API
@@ -59,13 +59,12 @@ start_link(ExtractorName, ExtractorModule, Options) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec(init(Args :: term()) ->
-  {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
-  {stop, Reason :: term()} | ignore).
+-spec(init(Args :: term()) -> 'ignore' | {'ok',_} | {'stop',_} | {'ok',_,'hibernate' | 'infinity' | non_neg_integer()}).
 init([ExtractorName, ExtractorModule, Options]) ->
   ExtractantTemplates = ExtractorModule:init(Options),
   start_listener(ExtractorName, ExtractorModule, ExtractantTemplates),
-  {ok, #state{extractor_module = ExtractorModule, extractant_templates = ExtractantTemplates}}.
+  State = #state{extractor_module = ExtractorModule, extractant_templates = ExtractantTemplates},
+  {ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private

@@ -55,7 +55,7 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 %% @spec inp(Template) -> {ok, Tuple} | {ok, null}
 %% @end
 %%--------------------------------------------------------------------
--spec inp(Template :: tuple(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','null' | tuple()}.
+-spec inp(Template :: tuple(), Caller :: pid()) -> nolock | true.
 
 inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
@@ -115,7 +115,7 @@ rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 %% @spec rdp(Template) -> {ok, Tuple} | {ok, null}
 %% @end
 %%--------------------------------------------------------------------
--spec rdp(Template :: term(), Caller :: pid()) -> {pid(),reference(),'done','inp' | 'rdp','null' | tuple()}.
+-spec rdp(Template :: term(), Caller :: pid()) -> nolock | true.
 
 rdp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
@@ -150,8 +150,7 @@ eval(Specification) when is_tuple(Specification) ->
 %% @spec count(Template) -> Count
 %% @end
 %%--------------------------------------------------------------------
--spec count(Template :: tuple(), Caller :: pid() | port() | {atom(),atom()}) ->
-  {pid(),reference(),'done','count',non_neg_integer()}.
+-spec count(Template :: tuple(), Caller :: pid() | port() | {atom(),atom()}) -> nolock | true.
 
 count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
