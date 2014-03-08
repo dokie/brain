@@ -6,7 +6,8 @@
               {mod,{brain_app,[]}},
               {env,[]},
               {modules,[brain_app,brain_sup,extractor,extractor_server,
-                        factory,factory_server,generator,generator_server,
-                        reactor,reactor_server,simple_extractor,
-                        simple_factory,simple_generator,simple_reactor,
-                        tuple_space,tuple_space_server,utilities]}]}.
+                        factory,factory_server,factory_sup,generator,
+                        generator_server,job_server,job_sup,reactor,
+                        reactor_server,simple_extractor,simple_factory,
+                        simple_generator,simple_reactor,tuple_space,
+                        tuple_space_server,utilities]}]}.
