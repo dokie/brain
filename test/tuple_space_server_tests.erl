@@ -321,3 +321,16 @@ locked_inp(_Pid) ->
   Count = length(lists:filter(fun (E) -> null =:= E end, Match)),
   [?_assertEqual(4, Count)].
 
+tuple_space_ttl_test_() ->
+  [{"Test of ttl removes correctly",
+    ?setup(fun ttl_correct/1)}].
+
+ttl_correct(_Pid) ->
+  Tuple = {ttl, 1},
+  ok = ?SERVER:out(Tuple, 300),
+  Template = {ttl, integer},
+  There = ?SERVER:rd(Template),
+  timer:sleep(500),
+  Missing = ?SERVER:rdp(Template),
+  [?_assertEqual(Tuple, There),
+   ?_assertEqual(null, Missing)].

@@ -10,11 +10,10 @@
 -author("mike").
 
 %% API
--export([out/1, in/2, inp/2, rd/2, rdp/2, eval/1, count/2]).
+-export([out/1, out/3, in/2, inp/2, rd/2, rdp/2, eval/1, count/2, expired/2]).
 
 %% Definitions
 -define(WAIT, 50).
-
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -29,6 +28,41 @@ out(Tuple) ->
   %% Augment Tuple with UUID
   Uuid = uuid:to_string(simple,uuid:uuid4()),
   list_to_tuple([Uuid] ++ tuple_to_list(Tuple)).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Add a Tuple into the Tuplespace with a TTl after which it will
+%% be deleted
+%%
+%% @spec out(Tuple :: tuple(), Ttl :: integer(), Caller :: pid()) -> tuple()
+%% @end
+%%--------------------------------------------------------------------
+-spec(out(Tuple :: tuple(), Ttl :: integer(), Caller :: pid()) -> tuple()).
+out(Tuple, Ttl, Caller) ->
+  ToStore = out(Tuple),
+  timer:apply_after(Ttl, ?MODULE, expired, [ToStore, Caller]),
+  ToStore.
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Requestes a Tuple be expired from the tuplespace
+%%
+%% @spec expired(Tuple :: tuple(), Server :: pid()) -> no_return()
+%% @end
+%%--------------------------------------------------------------------
+-spec(expired(Tuple :: tuple(), Server :: pid()) -> no_return()).
+expired(Tuple, Server) when is_tuple(Tuple) ->
+  Nodes = [node()],
+  Ref = make_ref(),
+  Id = {tuples, Ref},
+  case global:set_lock(Id, Nodes) of
+    true ->
+      Server ! {expired, Tuple},
+      global:del_lock(Id, Nodes);
+
+    false ->
+      nolock
+  end.
 
 %%--------------------------------------------------------------------
 %% @doc

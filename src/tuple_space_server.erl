@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/0]).
--export([stop/0, out/1, in/1, inp/1, rd/1, rdp/1, eval/1, count/1]).
+-export([stop/0, out/1, out/2, in/1, inp/1, rd/1, rdp/1, eval/1, count/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -66,6 +66,17 @@ out(Tuple) when is_tuple(Tuple) ->
 
 %%--------------------------------------------------------------------
 %% @doc
+%% Places a Tuple into the Tuplespace to live for up to a TTL
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(out(Tuple :: tuple(), Ttl :: timeout()) -> ok).
+
+out(Tuple, Ttl) when is_tuple(Tuple), is_integer(Ttl), Ttl > 0 ->
+  gen_server:cast(?SERVER, {out, Tuple, Ttl}).
+
+%%--------------------------------------------------------------------
+%% @doc
 %% Gets a Tuple from the Tuplespace that matches a Template
 %% and removes it. This is a Blocking Call
 %%
@@ -74,7 +85,7 @@ out(Tuple) when is_tuple(Tuple) ->
 -spec(in(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
 in(Template) when is_tuple(Template) ->
-  gen_server:call(?SERVER, {in, Template}, infinity).
+  gen_server:call(?SERVER, {in, Template}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -224,6 +235,11 @@ handle_cast({out, Tuple}, State) ->
   ets:insert(tuples, ToStore),
   {noreply,State};
 
+handle_cast({out, Tuple, Ttl}, State) ->
+  ToStore = tuple_space:out(Tuple, Ttl, self()),
+  ets:insert(tuples, ToStore),
+  {noreply,State};
+
 handle_cast({eval, Specification}, State) ->
   ToStore = tuple_space:eval(Specification),
   ets:insert(tuples, ToStore),
@@ -290,6 +306,10 @@ handle_info({Worker, done, _Mode, Tuple}, State) ->
   reply_to_request(Request, Result),
   {noreply, State};
 
+handle_info({expired, Tuple}, State) ->
+  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  {noreply, State};
+
 handle_info({'EXIT', _Pid, normal}, State) ->
   {noreply, State};
 
@@ -341,3 +361,4 @@ terminate(_Reason, _State) ->
   {ok, NewState :: #tuplespace{}} | {error, Reason :: term()}).
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
