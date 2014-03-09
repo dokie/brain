@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/1]).
+-export([start_link/2]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -32,10 +32,12 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(Factory :: {FactoryName :: term(), _FactoryModule :: module(), FactoryOpts :: [term()]}) ->
+-spec(start_link(JobName :: term(),
+    Factory :: {FactoryName :: term(),
+      _FactoryModule :: module(), FactoryOpts :: [term()]}) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(Factory = {_FactoryName, _FactoryModule, _FactoryOpts}) ->
-  supervisor:start_link(?MODULE, Factory).
+start_link(JobName, Factory = {_FactoryName, _FactoryModule, _FactoryOpts}) ->
+  supervisor:start_link(?MODULE, {JobName, Factory}).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -58,15 +60,15 @@ start_link(Factory = {_FactoryName, _FactoryModule, _FactoryOpts}) ->
   }} |
   ignore |
   {error, Reason :: term()}).
-init({FactoryName, FactoryModule, FactoryOpts}) ->
+init({JobName, {FactoryName, FactoryModule, FactoryOpts}}) ->
   RestartStrategy = simple_one_for_one,
   MaxRestarts = 1000,
   MaxSecondsBetweenRestarts = 3600,
 
   SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-  {ok, {SupFlags, [{factory_server, {FactoryName, FactoryModule, FactoryOpts}, temporary, 5000, worker,
-    [FactoryName, FactoryModule, FactoryOpts]}]}}.
+  {ok, {SupFlags, [{factory_server, [JobName, {FactoryName, FactoryModule, FactoryOpts}], temporary, 5000, worker,
+    [factory_server]}]}}.
 
 %%%===================================================================
 %%% Internal functions

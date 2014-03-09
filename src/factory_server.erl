@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/3, create/1]).
+-export([start_link/2, create/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -39,10 +39,12 @@ create(FactoryName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(FactoryName :: atom(), FactoryModule :: module(), Options :: list(tuple())) ->
+-spec(start_link(JobName :: term(),
+        {FactoryName :: atom(), FactoryModule :: module(), Options :: list(tuple())}) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(FactoryName, FactoryModule, Options) ->
-  gen_server:start_link({local, FactoryName}, ?MODULE, [FactoryModule, Options], []).
+start_link(JobName, {FactoryName, FactoryModule, Options}) ->
+  gen_server:start_link({local, FactoryName}, ?MODULE,
+    [JobName, FactoryModule, Options], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -62,7 +64,7 @@ start_link(FactoryName, FactoryModule, Options) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([FactoryModule, Options]) ->
+init([_JobName, FactoryModule, Options]) ->
   {ok, InitialFactoryState} = FactoryModule:init(Options),
   {ok, #state{factory = FactoryModule, factory_state = InitialFactoryState}}.
 

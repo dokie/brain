@@ -23,3 +23,6 @@ simple_hash_test() ->
   Key = utilities:key(Tuple),
   Expected = "746c8f9724290fa2afea25debeb1eebb",
   ?_assertEqual(Expected, Key).
+
+simple_atom_concat_test() ->
+  ?_assert(is_atom(utilities:atom_concat(first, second))).
