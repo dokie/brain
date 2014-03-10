@@ -24,7 +24,16 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-define(FACTORY_SPEC(JobName, Factory),
+  {factory_sup,
+    {factory_sup, start_link, [JobName, Factory]},
+    temporary,
+    1000,
+    supervisor,
+    [factory_sup]}).
+
+
+-record(state, {sup, refs}).
 
 %%%===================================================================
 %%% API
@@ -39,7 +48,7 @@
 -spec(start_link(JobName :: term(), Sup :: pid(), JobSpec :: tuple()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(JobName, Sup, JobSpec) ->
-  gen_server:start_link({local, JobName}, ?MODULE, {JobSpec, Sup}, []).
+  gen_server:start_link({local, JobName}, ?MODULE, {JobName, JobSpec, Sup}, []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -59,8 +68,10 @@ start_link(JobName, Sup, JobSpec) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init({_JobSpec, _Sup}) ->
-  {ok, #state{}}.
+init({JobName, _JobSpec, Sup}) ->
+  Factory = {simple, simple_factory, []},
+  self() ! {start_factory_supervisor, Sup, JobName, Factory},
+  {ok, #state{refs = gb_sets:empty()}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -108,6 +119,12 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
+handle_info({start_factory_supervisor, Sup, JobName, Factory}, State = #state{}) ->
+  {ok, Pid} = supervisor:start_child(Sup, ?FACTORY_SPEC(JobName, Factory)),
+  link(Pid),
+  {noreply, State#state{sup = Pid}};
+
 handle_info(_Info, State) ->
   {noreply, State}.
 
