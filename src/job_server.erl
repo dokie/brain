@@ -24,16 +24,16 @@
 
 -define(SERVER, ?MODULE).
 
--define(FACTORY_SPEC(JobName, Factory),
+-define(SHELL_FACTORY_SPEC(),
   {factory_sup,
-    {factory_sup, start_link, [JobName, Factory]},
-    temporary,
-    1000,
+    {factory_sup, start_link, []},
+    permanent,
+    infinity,
     supervisor,
     [factory_sup]}).
 
 
--record(state, {sup, refs}).
+-record(state, {sup, refs, name, spec}).
 
 %%%===================================================================
 %%% API
@@ -68,10 +68,9 @@ start_link(JobName, Sup, JobSpec) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init({JobName, _JobSpec, Sup}) ->
-  Factory = {simple, simple_factory, []},
-  self() ! {start_factory_supervisor, Sup, JobName, Factory},
-  {ok, #state{refs = gb_sets:empty()}}.
+init({JobName, JobSpec, Sup}) ->
+  self() ! {start_factory_supervisor, Sup},
+  {ok, #state{refs = gb_sets:empty(),name = JobName, spec = JobSpec}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -120,8 +119,8 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_info({start_factory_supervisor, Sup, JobName, Factory}, State = #state{}) ->
-  {ok, Pid} = supervisor:start_child(Sup, ?FACTORY_SPEC(JobName, Factory)),
+handle_info({start_factory_supervisor, Sup}, State = #state{}) ->
+  {ok, Pid} = supervisor:start_child(Sup, ?SHELL_FACTORY_SPEC()),
   link(Pid),
   {noreply, State#state{sup = Pid}};
 

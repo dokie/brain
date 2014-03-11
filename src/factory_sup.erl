@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/2]).
+-export([start_link/0]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -20,7 +20,7 @@
 -define(SERVER, ?MODULE).
 
 %% Helper macro for declaring children of supervisor
--define(CHILD(I, Type, Args), {I, {I, start_link, [Args]}, permanent, 5000, Type, [I]}).
+-define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
 
 %%%===================================================================
 %%% API functions
@@ -32,11 +32,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(JobName :: term(),
-    Factory :: {FactoryName :: term(), FactoryModule :: module(), FactoryOpts :: [term()]}) ->
+-spec(start_link() ->
       {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(JobName, Factory = {_FactoryName, _FactoryModule, _FactoryOpts}) ->
-  supervisor:start_link({local, ?SERVER}, ?MODULE, {JobName, Factory}).
+start_link() ->
+  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -59,15 +58,14 @@ start_link(JobName, Factory = {_FactoryName, _FactoryModule, _FactoryOpts}) ->
   }} |
   ignore |
   {error, Reason :: term()}).
-init({JobName, {FactoryName, FactoryModule, FactoryOpts}}) ->
+init(_Args) ->
   RestartStrategy = simple_one_for_one,
   MaxRestarts = 10,
   MaxSecondsBetweenRestarts = 3600,
 
   SupFlags = {RestartStrategy, MaxRestarts, MaxSecondsBetweenRestarts},
 
-  {ok, {SupFlags, [?CHILD(factory_server, worker,
-    [JobName, {FactoryName, FactoryModule, FactoryOpts}])]}}.
+  {ok, {SupFlags, [?CHILD(factory_server, worker)]}}.
 
 %%%===================================================================
 %%% Internal functions

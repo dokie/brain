@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/2, create/1]).
+-export([start_link/0, start_link/2, create/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -40,8 +40,11 @@ create(FactoryName) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(start_link(JobName :: term(),
-        {FactoryName :: atom(), FactoryModule :: module(), Options :: list(tuple())}) ->
-  {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+    {FactoryName :: atom(), FactoryModule :: module(), Options :: list(tuple())} | none()) ->
+    {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+start_link() ->
+  {ok, #state{}}.
+
 start_link(JobName, {FactoryName, FactoryModule, Options}) ->
   gen_server:start_link({local, FactoryName}, ?MODULE,
     [JobName, FactoryModule, Options], []).
