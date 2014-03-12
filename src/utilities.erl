@@ -10,7 +10,7 @@
 -author("dokie").
 
 %% API
--export([pmap/2, key/1, each_with_index/2]).
+-export([pmap/2, key/1, each_with_index/2, atom_concat/2]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -47,6 +47,16 @@ key(T) when is_tuple(T) ->
   B = term_to_binary(T),
   H = erlang:md5(B),
   hexstring(H).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% A concatonate 2 atoms into one
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(atom_concat(First :: atom(), Second :: atom()) -> atom()).
+atom_concat(First, Second) when is_atom(First), is_atom(Second) ->
+  list_to_atom(atom_to_list(First) ++ ("_" ++ atom_to_list(Second))).
 
 %%--------------------------------------------------------------------
 %% @private

@@ -35,7 +35,7 @@
 -spec(start_link(JobName :: atom(), JobSpec :: tuple()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(JobName, JobSpec) ->
-  supervisor:start_link({local, ?SERVER}, ?MODULE, {JobName, JobSpec}).
+  supervisor:start_link({local, utilities:atom_concat(JobName, ?SERVER)}, ?MODULE, {JobName, JobSpec}).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -54,9 +54,7 @@ start_link(JobName, JobSpec) ->
 -spec(init(Args :: term()) ->
   {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(), MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
     [ChildSpec :: supervisor:child_spec()]
-  }} |
-  ignore |
-  {error, Reason :: term()}).
+  }} | ignore ).
 init({JobName,  JobSpec}) ->
   RestartStrategy = one_for_one,
   MaxRestarts = 1000,

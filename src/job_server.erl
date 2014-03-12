@@ -13,6 +13,7 @@
 
 %% API
 -export([start_link/3]).
+-export([build_factory/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -22,22 +23,27 @@
   terminate/2,
   code_change/3]).
 
--define(SERVER, ?MODULE).
+-define(SERVER(JobName), utilities:atom_concat(JobName, ?MODULE)).
 
--define(SHELL_FACTORY_SPEC(),
+-define(SHELL_FACTORY_SPEC(JobName),
   {factory_sup,
-    {factory_sup, start_link, []},
+    {factory_sup, start_link, [JobName]},
     permanent,
     infinity,
     supervisor,
     [factory_sup]}).
 
 
--record(state, {sup, refs, name, spec}).
+-record(state, {factory_sup, refs, job_name, job_spec}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+-spec(build_factory(JobName :: atom(), {FactoryName :: atom(), FactoryModule :: module(),
+  FactoryOpts :: list(term())}) -> {ok, pid()}).
+build_factory(JobName, Factory = {_FactoryName, _FactoryModule, _FactoryOpts}) ->
+  gen_server:call(?SERVER(JobName), {build_factory, Factory}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -48,7 +54,7 @@
 -spec(start_link(JobName :: term(), Sup :: pid(), JobSpec :: tuple()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
 start_link(JobName, Sup, JobSpec) ->
-  gen_server:start_link({local, JobName}, ?MODULE, {JobName, JobSpec, Sup}, []).
+  gen_server:start_link({local, ?SERVER(JobName)}, ?MODULE, {JobName, JobSpec, Sup}, []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -69,8 +75,8 @@ start_link(JobName, Sup, JobSpec) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init({JobName, JobSpec, Sup}) ->
-  self() ! {start_factory_supervisor, Sup},
-  {ok, #state{refs = gb_sets:empty(),name = JobName, spec = JobSpec}}.
+  self() ! {start_factory_supervisor, Sup, JobName},
+  {ok, #state{refs = gb_sets:empty(), job_name = JobName, job_spec = JobSpec}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -87,6 +93,13 @@ init({JobName, JobSpec, Sup}) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
+handle_call({build_factory, Factory = {_FactoryName, _FactoryModule, _FactoryOpts}}, _From,
+    State = #state{factory_sup = Sup, job_name = JobName, refs = Refs}) ->
+  {ok, Pid} = supervisor:start_child(Sup, [JobName, Factory]),
+  Ref = monitor(process, Pid),
+  NewState = State#state{refs = gb_sets:add(Ref, Refs)},
+  {reply, {ok, Pid}, NewState};
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -119,10 +132,10 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_info({start_factory_supervisor, Sup}, State = #state{}) ->
-  {ok, Pid} = supervisor:start_child(Sup, ?SHELL_FACTORY_SPEC()),
+handle_info({start_factory_supervisor, Sup, JobName}, State = #state{}) ->
+  {ok, Pid} = supervisor:start_child(Sup, ?SHELL_FACTORY_SPEC(JobName)),
   link(Pid),
-  {noreply, State#state{sup = Pid}};
+  {noreply, State#state{factory_sup = Pid}};
 
 handle_info(_Info, State) ->
   {noreply, State}.

@@ -12,7 +12,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -32,10 +32,10 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link() ->
+-spec(start_link(JobName :: atom()) ->
       {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link() ->
-  supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+start_link(JobName) ->
+  supervisor:start_link({local, utilities:atom_concat(JobName, ?SERVER)}, ?MODULE, []).
 
 %%%===================================================================
 %%% Supervisor callbacks
@@ -55,9 +55,7 @@ start_link() ->
   {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(),
     MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
     [ChildSpec :: supervisor:child_spec()]
-  }} |
-  ignore |
-  {error, Reason :: term()}).
+  }} | ignore).
 init(_Args) ->
   RestartStrategy = simple_one_for_one,
   MaxRestarts = 10,

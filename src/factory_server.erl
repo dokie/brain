@@ -46,7 +46,7 @@ start_link() ->
   {ok, #state{}}.
 
 start_link(JobName, {FactoryName, FactoryModule, Options}) ->
-  gen_server:start_link({local, FactoryName}, ?MODULE,
+  gen_server:start_link({local, utilities:atom_concat(JobName, FactoryName)}, ?MODULE,
     [JobName, FactoryModule, Options], []).
 
 %%%===================================================================

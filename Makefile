@@ -18,7 +18,7 @@
 ERLFLAGS= -pa $(CURDIR)/.eunit -pa $(CURDIR)/ebin -pa $(CURDIR)/deps/*/ebin
 
 DEPS_PLT=$(CURDIR)/.deps_plt
-DEPS=erts kernel stdlib
+DEPS=erts kernel stdlib $(CURDIR)/deps/uuid
 
 # =============================================================================
 # Verify that the programs we need to run are installed on this system
