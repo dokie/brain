@@ -29,7 +29,8 @@ complete_job(JobName) ->
   supervisor:terminate_child(brain_sup, JobName),
   supervisor:delete_child(brain_sup, JobName).
 
-run_job(_JobName) ->
+run_job(JobName) ->
+  job_server:run_job(JobName),
   ok.
 
 %% ===================================================================

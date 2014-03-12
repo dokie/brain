@@ -13,7 +13,7 @@
 
 %% API
 -export([start_link/3]).
--export([specify_job/1]).
+-export([specify_job/1, run_job/1]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -42,6 +42,9 @@
 
 specify_job(JobName) ->
   gen_server:call(?SERVER(JobName), specify_job).
+
+run_job(JobName) ->
+  gen_server:call(?SERVER(JobName), run_job).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -104,6 +107,15 @@ handle_call(specify_job, _From, State = #state{job_spec = JobSpec}) ->
       NewState
     end,
   FinalState = lists:foldl(BuildFactory, State, FactorySpecs),
+  {reply, ok, FinalState};
+
+handle_call(run_job, _From, State = #state{job_spec = JobSpec}) ->
+  {factories, FactorySpecs} = JobSpec,
+  RunFactory = fun ({FactoryName, _, _ }, S = #state{job_name = JobName}) ->
+    factory_server:run(JobName, FactoryName),
+    S
+  end,
+  FinalState = lists:foldl(RunFactory, State, FactorySpecs),
   {reply, ok, FinalState};
 
 handle_call(_Request, _From, State) ->
