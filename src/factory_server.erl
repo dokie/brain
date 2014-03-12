@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start_link/2, create/2]).
+-export([start_link/0, start_link/2, run/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -29,10 +29,10 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
--spec(create(JobName :: atom(), FactoryName :: atom()) -> no_return()).
+-spec(run(JobName :: atom(), FactoryName :: atom()) -> no_return()).
 
-create(JobName, FactoryName) ->
-  gen_server:cast(?SERVER(JobName, FactoryName), create).
+run(JobName, FactoryName) ->
+  gen_server:cast(?SERVER(JobName, FactoryName), run).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -105,9 +105,9 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_cast(create, State) ->
+handle_cast(run, State) ->
   Factory = State#state.factory,
-  Factory:create(self(), State#state.factory_state),
+  Factory:run(self(), State#state.factory_state),
   {noreply, State};
 
 handle_cast(_Request, State) ->
@@ -127,9 +127,9 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({created, Recipe, CreatedState}, State) ->
+handle_info({ran, Recipe, RanState}, State) ->
   ok = tuple_space_server:eval(Recipe),
-  NewState = State#state{factory_state = CreatedState},
+  NewState = State#state{factory_state = RanState},
   {noreply, NewState};
 
 handle_info(_Info, State) ->

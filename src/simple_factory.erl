@@ -12,14 +12,14 @@
 -behaviour(factory).
 
 %% API
--export([init/1, create/2]).
+-export([init/1, run/2]).
 
 -spec(init(Options :: list(term())) -> {ok, State :: term()} | tuple(error, Reason :: string())).
 init(_Options) ->
   InitialState = random:seed0(),
   {ok, InitialState}.
 
--spec(create(From :: pid(), State:: term()) -> no_return()).
-create(From, State) when is_pid(From) ->
+-spec(run(From :: pid(), State:: term()) -> no_return()).
+run(From, State) when is_pid(From) ->
   {X, NewState} = random:uniform_s(State),
-  From ! {created, {random, fun () -> X end}, NewState}.
+  From ! {ran, {random, fun () -> X end}, NewState}.
