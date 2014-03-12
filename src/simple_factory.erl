@@ -16,9 +16,10 @@
 
 -spec(init(Options :: list(term())) -> {ok, State :: term()} | tuple(error, Reason :: string())).
 init(_Options) ->
-  InitialState = 0,
+  InitialState = random:seed0(),
   {ok, InitialState}.
 
 -spec(create(From :: pid(), State:: term()) -> no_return()).
 create(From, State) when is_pid(From) ->
-  From ! {created, {random, fun () -> random:uniform() end}, State}.
+  {X, NewState} = random:uniform_s(State),
+  From ! {created, {random, fun () -> X end}, NewState}.

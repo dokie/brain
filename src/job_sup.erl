@@ -55,6 +55,7 @@ start_link(JobName, JobSpec) ->
   {ok, {SupFlags :: {RestartStrategy :: supervisor:strategy(), MaxR :: non_neg_integer(), MaxT :: non_neg_integer()},
     [ChildSpec :: supervisor:child_spec()]
   }} | ignore ).
+
 init({JobName,  JobSpec}) ->
   RestartStrategy = one_for_one,
   MaxRestarts = 1000,

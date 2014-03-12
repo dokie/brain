@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0, start_link/2, create/1]).
+-export([start_link/0, start_link/2, create/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -22,16 +22,17 @@
   terminate/2,
   code_change/3]).
 
--define(SERVER, ?MODULE).
+-define(SERVER(JobName, FactoryName), utilities:atom_concat(JobName, FactoryName)).
 
--record(state, {factory, factory_state}).
+-record(state, {job_name, factory, factory_state}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
--spec(create(FactoryName :: atom()) -> no_return()).
-create(FactoryName) ->
-  gen_server:cast(FactoryName, create).
+-spec(create(JobName :: atom(), FactoryName :: atom()) -> no_return()).
+
+create(JobName, FactoryName) ->
+  gen_server:cast(?SERVER(JobName, FactoryName), create).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -42,11 +43,12 @@ create(FactoryName) ->
 -spec(start_link(JobName :: term(),
     {FactoryName :: atom(), FactoryModule :: module(), Options :: list(tuple())} | none()) ->
     {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
+
 start_link() ->
   {ok, #state{}}.
 
 start_link(JobName, {FactoryName, FactoryModule, Options}) ->
-  gen_server:start_link({local, utilities:atom_concat(JobName, FactoryName)}, ?MODULE,
+  gen_server:start_link({local, ?SERVER(JobName, FactoryName)}, ?MODULE,
     [JobName, FactoryModule, Options], []).
 
 %%%===================================================================
@@ -67,9 +69,10 @@ start_link(JobName, {FactoryName, FactoryModule, Options}) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([_JobName, FactoryModule, Options]) ->
+
+init([JobName, FactoryModule, Options]) ->
   {ok, InitialFactoryState} = FactoryModule:init(Options),
-  {ok, #state{factory = FactoryModule, factory_state = InitialFactoryState}}.
+  {ok, #state{job_name = JobName, factory = FactoryModule, factory_state = InitialFactoryState}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -86,6 +89,7 @@ init([_JobName, FactoryModule, Options]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -100,6 +104,7 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_cast(create, State) ->
   Factory = State#state.factory,
   Factory:create(self(), State#state.factory_state),
