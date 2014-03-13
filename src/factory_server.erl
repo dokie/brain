@@ -127,6 +127,7 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_info({ran, Recipe, RanState}, State) ->
   ok = tuple_space_server:eval(Recipe),
   NewState = State#state{factory_state = RanState},

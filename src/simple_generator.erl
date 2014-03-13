@@ -12,18 +12,18 @@
 -behaviour(generator).
 
 %% API
--export([init/1, generate/2]).
+-export([init/1, run/2]).
 
 -spec(init(Options :: list(term())) -> {ok, State :: term()} | tuple(error, Reason :: string())).
 init(_Options) ->
   {ok, 0}.
 
--spec(generate(From :: pid(), State:: term()) -> no_return()).
-generate(From, State) when is_pid(From), is_number(State) ->
+-spec(run(From :: pid(), State:: term()) -> no_return()).
+run(From, State) when is_pid(From), is_number(State) ->
   if
     State < 11 ->
       NewState = State + 1,
-      From ! {generated, {simple, 1.23 * NewState}, NewState};
+      From ! {ran, {simple, 1.23 * NewState}, NewState};
     true ->
       ok
   end.

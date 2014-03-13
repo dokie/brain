@@ -33,8 +33,16 @@
     supervisor,
     [factory_sup]}).
 
+-define(SHELL_GENERATOR_SPEC(JobName),
+  {generator_sup,
+    {generator_sup, start_link, [JobName]},
+    permanent,
+    infinity,
+    supervisor,
+    [generator_sup]}).
 
--record(state, {factory_sup, factories, job_name, job_spec}).
+
+-record(state, {factory_sup, factories, generator_sup, generators, job_name, job_spec}).
 
 %%%===================================================================
 %%% API
@@ -77,9 +85,10 @@ start_link(JobName, JobSup, JobSpec) ->
   {ok, S :: #state{}} | {ok, S :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 
-init({JobName, JobSpec = {factories, _FactorySpecs}, JobSup}) ->
-  self() ! {start_factory_supervisor, JobSup, JobName},
-  {ok, #state{factories = gb_sets:empty(), job_name = JobName, job_spec = JobSpec}}.
+init({JobName, JobSpec = {factories, _FactorySpecs, generators, _GeneratorSpecs}, JobSup}) ->
+  self() ! {start_supervisors, JobSup, JobName},
+  {ok, #state{factories = gb_sets:empty(), generators = gb_sets:empty(),
+      job_name = JobName, job_spec = JobSpec}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -98,7 +107,7 @@ init({JobName, JobSpec = {factories, _FactorySpecs}, JobSup}) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call(specify_job, _From, State = #state{job_spec = JobSpec}) ->
-  {factories, FactorySpecs} = JobSpec,
+  {factories, FactorySpecs, generators, GeneratorSpecs} = JobSpec,
   BuildFactory = fun (FactorySpec,
       S = #state{factory_sup = FactorySup, job_name = JobName, factories = FactoryRefs}) ->
       {ok, FactoryPid} = supervisor:start_child(FactorySup, [JobName, FactorySpec]),
@@ -106,16 +115,29 @@ handle_call(specify_job, _From, State = #state{job_spec = JobSpec}) ->
       NewState = S#state{factories = gb_sets:add(FactoryRef, FactoryRefs)},
       NewState
     end,
-  FinalState = lists:foldl(BuildFactory, State, FactorySpecs),
+  FactoryState = lists:foldl(BuildFactory, State, FactorySpecs),
+  BuildGenerator = fun (GeneratorSpec,
+      S = #state{generator_sup  = GeneratorSup, job_name = JobName, generators = GeneratorRefs}) ->
+    {ok, GeneratorPid} = supervisor:start_child(GeneratorSup, [JobName, GeneratorSpec]),
+    GeneratorRef = monitor(process, GeneratorPid),
+    NewState = S#state{generators = gb_sets:add(GeneratorRef, GeneratorRefs)},
+    NewState
+  end,
+  FinalState = lists:foldl(BuildGenerator, FactoryState, GeneratorSpecs),
   {reply, ok, FinalState};
 
 handle_call(run_job, _From, State = #state{job_spec = JobSpec}) ->
-  {factories, FactorySpecs} = JobSpec,
+  {factories, FactorySpecs, generators, GeneratorSpecs} = JobSpec,
   RunFactory = fun ({FactoryName, _, _ }, S = #state{job_name = JobName}) ->
     factory_server:run(JobName, FactoryName),
     S
   end,
-  FinalState = lists:foldl(RunFactory, State, FactorySpecs),
+  FactoryState = lists:foldl(RunFactory, State, FactorySpecs),
+  RunGenerator = fun ({GeneratorName, _, _ }, S = #state{job_name = JobName}) ->
+    factory_server:run(JobName, GeneratorName),
+    S
+  end,
+  FinalState = lists:foldl(RunGenerator, FactoryState, GeneratorSpecs),
   {reply, ok, FinalState};
 
 handle_call(_Request, _From, State) ->
@@ -150,17 +172,25 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_info({start_factory_supervisor, JobSupervisor, JobName}, State = #state{}) ->
+handle_info({start_supervisors, JobSupervisor, JobName}, State = #state{}) ->
   {ok, FactorySupervisor} = supervisor:start_child(JobSupervisor, ?SHELL_FACTORY_SPEC(JobName)),
   link(FactorySupervisor),
-  {noreply, State#state{factory_sup = FactorySupervisor}};
+  {ok, GeneratorSupervisor} = supervisor:start_child(JobSupervisor, ?SHELL_GENERATOR_SPEC(JobName)),
+  link(GeneratorSupervisor),
+  {noreply, State#state{factory_sup = FactorySupervisor, generator_sup = GeneratorSupervisor}};
 
-handle_info({'DOWN', Ref, process, _Pid, _}, S = #state{factories = FactoryRefs}) ->
+handle_info({'DOWN', Ref, process, _Pid, _},
+    S = #state{factories = FactoryRefs, generators = GeneratorRefs}) ->
   case gb_sets:is_element(Ref, FactoryRefs) of
     true ->
       handle_down_factory(Ref, S);
     false -> %% Not our responsibility, yet
-      {noreply, S}
+      case gb_sets:is_element(Ref, GeneratorRefs) of
+        true ->
+          handle_down_generator(Ref, S);
+        false -> %% Not our responsibility, yet
+          {noreply, S}
+      end
   end;
 
 handle_info(_Info, State) ->
@@ -205,3 +235,10 @@ handle_down_factory(FactoryRef,
   NewFactoryRef = erlang:monitor(process, Factory),
   NewFactoryRefs = gb_sets:insert(NewFactoryRef, gb_sets:delete(FactoryRef, FactoryRefs)),
   {noreply, S#state{factories = NewFactoryRefs}}.
+
+handle_down_generator(GeneratorRef,
+    S = #state{generator_sup = GeneratorSupervisor, generators = GeneratorRefs, job_name = JobName}) ->
+  {ok, Generator} = supervisor:start_child(GeneratorSupervisor, ?SHELL_GENERATOR_SPEC(JobName)),
+  NewGeneratorRef = erlang:monitor(process, Generator),
+  NewGeneratorRefs = gb_sets:insert(NewGeneratorRef, gb_sets:delete(GeneratorRef, GeneratorRefs)),
+  {noreply, S#state{generators = NewGeneratorRefs}}.

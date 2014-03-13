@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/3, generate/1]).
+-export([start_link/0, start_link/2, run/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -22,16 +22,16 @@
   terminate/2,
   code_change/3]).
 
--define(SERVER, ?MODULE).
+-define(SERVER(JobName, GeneratorName), utilities:atom_concat(JobName, GeneratorName)).
 
--record(state, {generator, generator_state}).
+-record(state, {job_name, generator, generator_state}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
--spec(generate(GeneratorName :: atom()) -> no_return()).
-generate(GeneratorName) ->
-  gen_server:cast(GeneratorName, generate).
+-spec(run(JobName :: atom(), GeneratorName :: atom()) -> no_return()).
+run(JobName, GeneratorName) ->
+  gen_server:cast(?SERVER(JobName, GeneratorName), run).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -39,10 +39,16 @@ generate(GeneratorName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(GeneratorName :: atom(), GeneratorModule :: module(), Options :: list(tuple())) ->
+-spec(start_link(JobName :: term(),
+  {GeneratorName :: atom(), GeneratorModule :: module(), Options :: list(tuple())} | none()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(GeneratorName, GeneratorModule, Options) ->
-  gen_server:start_link({local, GeneratorName}, ?MODULE, [GeneratorModule, Options], []).
+
+start_link() ->
+  {ok, #state{}}.
+
+start_link(JobName, {GeneratorName, GeneratorModule, Options}) ->
+  gen_server:start_link({local, ?SERVER(JobName, GeneratorName)}, ?MODULE,
+    [JobName, GeneratorModule, Options], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -62,9 +68,10 @@ start_link(GeneratorName, GeneratorModule, Options) ->
 -spec(init(Args :: term()) ->
   {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
-init([GeneratorModule, Options]) ->
+
+init([JobName, GeneratorModule, Options]) ->
   {ok, InitialGeneratorState} = GeneratorModule:init(Options),
-  {ok, #state{generator = GeneratorModule, generator_state = InitialGeneratorState}}.
+  {ok, #state{job_name = JobName, generator = GeneratorModule, generator_state = InitialGeneratorState}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -95,9 +102,10 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast(generate, State) ->
+
+handle_cast(run, State) ->
   Generator = State#state.generator,
-  Generator:generate(self(), State#state.generator_state),
+  Generator:run(self(), State#state.generator_state),
   {noreply, State};
 
 handle_cast(_Request, State) ->
@@ -117,9 +125,10 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_info({generated, Product, GeneratedState}, State) ->
+
+handle_info({ran, Product, RanState}, State) ->
   ok = tuple_space_server:out(Product),
-  NewState = State#state{generator_state = GeneratedState},
+  NewState = State#state{generator_state = RanState},
   {noreply, NewState};
 
 handle_info(_Info, State) ->
