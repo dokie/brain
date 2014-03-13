@@ -85,7 +85,7 @@ out(Tuple, Ttl) when is_tuple(Tuple), is_integer(Ttl), Ttl > 0 ->
 -spec(in(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
 in(Template) when is_tuple(Template) ->
-  gen_server:call(?SERVER, {in, Template}).
+  gen_server:call(?SERVER, {in, Template}, infinity).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -109,12 +109,12 @@ inp(Template) when is_tuple(Template) ->
 -spec(rd(Template :: tuple()) -> {term(), tuple()} | {noreply, term(), timeout()}).
 
 rd(Template) when is_tuple(Template) ->
-  gen_server:call(?SERVER, {rd, Template}).
+  gen_server:call(?SERVER, {rd, Template}, infinity).
 
 %%--------------------------------------------------------------------
 %% @doc
 %% Reads a Tuple from the Tuplespace that matches a Template
-%% and leaves it there - Blocking Call which returns null if no Tuple matches
+%% and leaves it there - Non Blocking Call which returns null if no Tuple matches
 %%
 %% @end
 %%--------------------------------------------------------------------

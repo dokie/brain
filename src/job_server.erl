@@ -41,8 +41,16 @@
     supervisor,
     [generator_sup]}).
 
+-define(SHELL_REACTOR_SPEC(JobName),
+  {reactor_sup,
+    {reactor_sup, start_link, [JobName]},
+    permanent,
+    infinity,
+    supervisor,
+    [reactor_sup]}).
 
--record(state, {factory_sup, factories, generator_sup, generators, job_name, job_spec}).
+-record(state, {factory_sup, factories, generator_sup, generators, reactor_sup, reactors,
+  job_name, job_spec}).
 
 %%%===================================================================
 %%% API
@@ -85,9 +93,9 @@ start_link(JobName, JobSup, JobSpec) ->
   {ok, S :: #state{}} | {ok, S :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 
-init({JobName, JobSpec = {factories, _FactorySpecs, generators, _GeneratorSpecs}, JobSup}) ->
+init({JobName, JobSpec = {factories, _FactorySpecs, generators, _GeneratorSpecs, reactors, _ReactorSpecs}, JobSup}) ->
   self() ! {start_supervisors, JobSup, JobName},
-  {ok, #state{factories = gb_sets:empty(), generators = gb_sets:empty(),
+  {ok, #state{factories = gb_sets:empty(), generators = gb_sets:empty(), reactors = gb_sets:empty(),
       job_name = JobName, job_spec = JobSpec}}.
 
 %%--------------------------------------------------------------------
@@ -106,8 +114,8 @@ init({JobName, JobSpec = {factories, _FactorySpecs, generators, _GeneratorSpecs}
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_call(specify_job, _From, State = #state{job_spec = JobSpec}) ->
-  {factories, FactorySpecs, generators, GeneratorSpecs} = JobSpec,
+handle_call(specify_job, _From, OriginalState = #state{job_spec = JobSpec}) ->
+  {factories, FactorySpecs, generators, GeneratorSpecs, reactors, ReactorSpecs} = JobSpec,
   BuildFactory = fun (FactorySpec,
       S = #state{factory_sup = FactorySup, job_name = JobName, factories = FactoryRefs}) ->
       {ok, FactoryPid} = supervisor:start_child(FactorySup, [JobName, FactorySpec]),
@@ -115,7 +123,7 @@ handle_call(specify_job, _From, State = #state{job_spec = JobSpec}) ->
       NewState = S#state{factories = gb_sets:add(FactoryRef, FactoryRefs)},
       NewState
     end,
-  FactoryState = lists:foldl(BuildFactory, State, FactorySpecs),
+  FactoryState = lists:foldl(BuildFactory, OriginalState, FactorySpecs),
   BuildGenerator = fun (GeneratorSpec,
       S = #state{generator_sup  = GeneratorSup, job_name = JobName, generators = GeneratorRefs}) ->
     {ok, GeneratorPid} = supervisor:start_child(GeneratorSup, [JobName, GeneratorSpec]),
@@ -123,22 +131,35 @@ handle_call(specify_job, _From, State = #state{job_spec = JobSpec}) ->
     NewState = S#state{generators = gb_sets:add(GeneratorRef, GeneratorRefs)},
     NewState
   end,
-  FinalState = lists:foldl(BuildGenerator, FactoryState, GeneratorSpecs),
+  GeneratorState = lists:foldl(BuildGenerator, FactoryState, GeneratorSpecs),
+  BuildReactor = fun (ReactorSpec,
+      S = #state{reactor_sup = ReactorSup, job_name = JobName, reactors = ReactorRefs}) ->
+    {ok, ReactorPid} = supervisor:start_child(ReactorSup, [JobName, ReactorSpec]),
+    ReactorRef = monitor(process, ReactorPid),
+    NewState = S#state{reactors = gb_sets:add(ReactorRef, ReactorRefs)},
+    NewState
+  end,
+  FinalState = lists:foldl(BuildReactor, GeneratorState, ReactorSpecs),
   {reply, ok, FinalState};
 
 handle_call(run_job, _From, State = #state{job_spec = JobSpec}) ->
-  {factories, FactorySpecs, generators, GeneratorSpecs} = JobSpec,
-  RunFactory = fun ({FactoryName, _, _ }, S = #state{job_name = JobName}) ->
+  {factories, FactorySpecs, generators, GeneratorSpecs, reactors, ReactorSpecs} = JobSpec,
+  RunFactory = fun ({FactoryName, _, _}, S = #state{job_name = JobName}) ->
     factory_server:run(JobName, FactoryName),
     S
   end,
   FactoryState = lists:foldl(RunFactory, State, FactorySpecs),
-  RunGenerator = fun ({GeneratorName, _, _ }, S = #state{job_name = JobName}) ->
-    factory_server:run(JobName, GeneratorName),
+  RunGenerator = fun ({GeneratorName, _, _}, S = #state{job_name = JobName}) ->
+    generator_server:run(JobName, GeneratorName),
     S
   end,
-  FinalState = lists:foldl(RunGenerator, FactoryState, GeneratorSpecs),
-  {reply, ok, FinalState};
+  GeneratorState = lists:foldl(RunGenerator, FactoryState, GeneratorSpecs),
+  RunReactor = fun ({ReactorName, _, _}, S = #state{job_name = JobName}) ->
+    reactor_server:run(JobName, ReactorName),
+    S
+  end,
+  ReactorState = lists:foldl(RunReactor, GeneratorState, ReactorSpecs),
+  {reply, ok, ReactorState};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -177,10 +198,13 @@ handle_info({start_supervisors, JobSupervisor, JobName}, State = #state{}) ->
   link(FactorySupervisor),
   {ok, GeneratorSupervisor} = supervisor:start_child(JobSupervisor, ?SHELL_GENERATOR_SPEC(JobName)),
   link(GeneratorSupervisor),
-  {noreply, State#state{factory_sup = FactorySupervisor, generator_sup = GeneratorSupervisor}};
+  {ok, ReactorSupervisor} = supervisor:start_child(JobSupervisor, ?SHELL_REACTOR_SPEC(JobName)),
+  link(ReactorSupervisor),
+  {noreply, State#state{factory_sup = FactorySupervisor, generator_sup = GeneratorSupervisor,
+    reactor_sup = ReactorSupervisor}};
 
 handle_info({'DOWN', Ref, process, _Pid, _},
-    S = #state{factories = FactoryRefs, generators = GeneratorRefs}) ->
+    S = #state{factories = FactoryRefs, generators = GeneratorRefs, reactors = ReactorRefs}) ->
   case gb_sets:is_element(Ref, FactoryRefs) of
     true ->
       handle_down_factory(Ref, S);
@@ -189,7 +213,12 @@ handle_info({'DOWN', Ref, process, _Pid, _},
         true ->
           handle_down_generator(Ref, S);
         false -> %% Not our responsibility, yet
-          {noreply, S}
+          case gb_sets:is_element(Ref, ReactorRefs) of
+            true ->
+              handle_down_reactor(Ref, S);
+            false -> %% Not our responsibility, yet
+              {noreply, S}
+          end
       end
   end;
 
@@ -242,3 +271,10 @@ handle_down_generator(GeneratorRef,
   NewGeneratorRef = erlang:monitor(process, Generator),
   NewGeneratorRefs = gb_sets:insert(NewGeneratorRef, gb_sets:delete(GeneratorRef, GeneratorRefs)),
   {noreply, S#state{generators = NewGeneratorRefs}}.
+
+handle_down_reactor(ReactorRef,
+    S = #state{reactor_sup = ReactorSupervisor, reactors = ReactorRefs, job_name = JobName}) ->
+  {ok, Reactor} = supervisor:start_child(ReactorSupervisor, ?SHELL_REACTOR_SPEC(JobName)),
+  NewReactorRef = erlang:monitor(process, Reactor),
+  NewReactorRefs = gb_sets:insert(NewReactorRef, gb_sets:delete(ReactorRef, ReactorRefs)),
+  {noreply, S#state{reactors = NewReactorRefs}}.

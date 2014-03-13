@@ -8,6 +8,6 @@
               {modules,[brain,brain_app,brain_sup,extractor,extractor_server,
                         factory,factory_server,factory_sup,generator,
                         generator_server,generator_sup,job_server,job_sup,
-                        reactor,reactor_server,simple_extractor,
+                        reactor,reactor_server,reactor_sup,simple_extractor,
                         simple_factory,simple_generator,simple_reactor,
                         tuple_space,tuple_space_server,utilities]}]}.

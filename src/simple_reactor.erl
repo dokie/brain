@@ -14,9 +14,9 @@
 %% API
 -export([init/1, react/2]).
 
--spec(init(Options :: list(term())) -> Templates :: list(tuple())).
+-spec(init(Options :: list(term())) -> {ok, Templates :: list(tuple())}).
 init(_Options) ->
-  [{simple, float}].
+  {ok, [{simple, float}]}.
 
 -spec(react(From :: atom() | pid() | port() | {atom(),atom()}, Reactants :: [{'simple',float()},...]) -> 'ok').
 react(From, [{simple, X}]) when is_float(X) ->
