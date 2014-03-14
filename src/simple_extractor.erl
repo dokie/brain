@@ -12,13 +12,14 @@
 -behaviour(extractor).
 
 %% API
--export([init/1, extract/1]).
+-export([init/1, extract/2]).
 
--spec(init(Options :: list()) -> ExtractantTemplates :: list(tuple())).
+-spec(init(Options :: list()) -> {ok, ExtractantTemplates :: list(tuple())}).
 init(_Options) ->
-  [{simple_product, float}].
+  {ok, [{simple_product, float}]}.
 
--spec(extract(Extractants :: [{'simple_product',float()},...]) -> ok).
-extract([{simple_product, X}]) when is_float(X) ->
+-spec(extract(From :: atom() | pid() | port() | {atom(),atom()},
+    Extractants :: [{'simple_product',float()},...]) -> ok).
+extract(_From, [{simple_product, X}]) when is_float(X) ->
   io:format("Extracted ~p~n", [{simple_product, X}]),
   ok.

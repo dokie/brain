@@ -10,6 +10,6 @@
 -author("dokie").
 
 %% Behaviour
--callback init(Options :: list(term())) -> Extractants :: list(tuple()).
+-callback init(Options :: list(term())) -> {ok, Extractants :: list(tuple())}.
 
--callback extract(Extractants :: list(tuple())) -> ok.
+-callback extract(From :: atom() | pid() | port() | {atom(),atom()}, Extractants :: list(tuple())) -> ok.

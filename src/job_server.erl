@@ -49,8 +49,16 @@
     supervisor,
     [reactor_sup]}).
 
+-define(SHELL_EXTRACTOR_SPEC(JobName),
+  {extractor_sup,
+    {extractor_sup, start_link, [JobName]},
+    permanent,
+    infinity,
+    supervisor,
+    [extractor_sup]}).
+
 -record(state, {factory_sup, factories, generator_sup, generators, reactor_sup, reactors,
-  job_name, job_spec}).
+  extractor_sup, extractors, job_name, job_spec}).
 
 %%%===================================================================
 %%% API
@@ -93,10 +101,11 @@ start_link(JobName, JobSup, JobSpec) ->
   {ok, S :: #state{}} | {ok, S :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 
-init({JobName, JobSpec = {factories, _FactorySpecs, generators, _GeneratorSpecs, reactors, _ReactorSpecs}, JobSup}) ->
+init({JobName, JobSpec = {factories, _FactorySpecs, generators, _GeneratorSpecs,
+  reactors, _ReactorSpecs, extractors, _ExtractorSpecs}, JobSup}) ->
   self() ! {start_supervisors, JobSup, JobName},
   {ok, #state{factories = gb_sets:empty(), generators = gb_sets:empty(), reactors = gb_sets:empty(),
-      job_name = JobName, job_spec = JobSpec}}.
+    extractors = gb_sets:empty(), job_name = JobName, job_spec = JobSpec}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -115,7 +124,8 @@ init({JobName, JobSpec = {factories, _FactorySpecs, generators, _GeneratorSpecs,
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_call(specify_job, _From, OriginalState = #state{job_spec = JobSpec}) ->
-  {factories, FactorySpecs, generators, GeneratorSpecs, reactors, ReactorSpecs} = JobSpec,
+  {factories, FactorySpecs, generators, GeneratorSpecs, reactors, ReactorSpecs,
+    extractors, ExtractorSpecs} = JobSpec,
   BuildFactory = fun (FactorySpec,
       S = #state{factory_sup = FactorySup, job_name = JobName, factories = FactoryRefs}) ->
       {ok, FactoryPid} = supervisor:start_child(FactorySup, [JobName, FactorySpec]),
@@ -139,11 +149,20 @@ handle_call(specify_job, _From, OriginalState = #state{job_spec = JobSpec}) ->
     NewState = S#state{reactors = gb_sets:add(ReactorRef, ReactorRefs)},
     NewState
   end,
-  FinalState = lists:foldl(BuildReactor, GeneratorState, ReactorSpecs),
+  ReactorState = lists:foldl(BuildReactor, GeneratorState, ReactorSpecs),
+  BuildExtractor = fun (ExtractorSpec,
+      S = #state{extractor_sup = ExtractorSup, job_name = JobName, extractors = ExtractorRefs}) ->
+    {ok, ExtractorPid} = supervisor:start_child(ExtractorSup, [JobName, ExtractorSpec]),
+    ExtractorRef = monitor(process, ExtractorPid),
+    NewState = S#state{extractors = gb_sets:add(ExtractorRef, ExtractorRefs)},
+    NewState
+  end,
+  FinalState = lists:foldl(BuildExtractor, ReactorState, ExtractorSpecs),
   {reply, ok, FinalState};
 
 handle_call(run_job, _From, State = #state{job_spec = JobSpec}) ->
-  {factories, FactorySpecs, generators, GeneratorSpecs, reactors, ReactorSpecs} = JobSpec,
+  {factories, FactorySpecs, generators, GeneratorSpecs, reactors, ReactorSpecs,
+   extractors, ExtractorSpecs} = JobSpec,
   RunFactory = fun ({FactoryName, _, _}, S = #state{job_name = JobName}) ->
     factory_server:run(JobName, FactoryName),
     S
@@ -159,7 +178,12 @@ handle_call(run_job, _From, State = #state{job_spec = JobSpec}) ->
     S
   end,
   ReactorState = lists:foldl(RunReactor, GeneratorState, ReactorSpecs),
-  {reply, ok, ReactorState};
+  RunExtractor = fun ({ExtractorName, _, _}, S = #state{job_name = JobName}) ->
+    extractor_server:run(JobName, ExtractorName),
+    S
+  end,
+  FinalState = lists:foldl(RunExtractor, ReactorState, ExtractorSpecs),
+  {reply, ok, FinalState};
 
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
@@ -175,6 +199,7 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_cast(_Request, State) ->
   {noreply, State}.
 
@@ -200,11 +225,14 @@ handle_info({start_supervisors, JobSupervisor, JobName}, State = #state{}) ->
   link(GeneratorSupervisor),
   {ok, ReactorSupervisor} = supervisor:start_child(JobSupervisor, ?SHELL_REACTOR_SPEC(JobName)),
   link(ReactorSupervisor),
+  {ok, ExtractorSupervisor} = supervisor:start_child(JobSupervisor, ?SHELL_EXTRACTOR_SPEC(JobName)),
+  link(ExtractorSupervisor),
   {noreply, State#state{factory_sup = FactorySupervisor, generator_sup = GeneratorSupervisor,
-    reactor_sup = ReactorSupervisor}};
+    reactor_sup = ReactorSupervisor, extractor_sup = ExtractorSupervisor}};
 
 handle_info({'DOWN', Ref, process, _Pid, _},
-    S = #state{factories = FactoryRefs, generators = GeneratorRefs, reactors = ReactorRefs}) ->
+    S = #state{factories = FactoryRefs, generators = GeneratorRefs,
+      reactors = ReactorRefs, extractors = ExtractorRefs}) ->
   case gb_sets:is_element(Ref, FactoryRefs) of
     true ->
       handle_down_factory(Ref, S);
@@ -217,7 +245,12 @@ handle_info({'DOWN', Ref, process, _Pid, _},
             true ->
               handle_down_reactor(Ref, S);
             false -> %% Not our responsibility, yet
-              {noreply, S}
+              case gb_sets:is_element(Ref, ExtractorRefs) of
+                true ->
+                  handle_down_extractor(Ref, S);
+                false -> %% Not our responsibility, yet
+                  {noreply, S}
+                end
           end
       end
   end;
@@ -278,3 +311,10 @@ handle_down_reactor(ReactorRef,
   NewReactorRef = erlang:monitor(process, Reactor),
   NewReactorRefs = gb_sets:insert(NewReactorRef, gb_sets:delete(ReactorRef, ReactorRefs)),
   {noreply, S#state{reactors = NewReactorRefs}}.
+
+handle_down_extractor(ExtractorRef,
+    S = #state{extractor_sup = ExtractorSupervisor, extractors = ExtractorRefs, job_name = JobName}) ->
+  {ok, Extractor} = supervisor:start_child(ExtractorSupervisor, ?SHELL_EXTRACTOR_SPEC(JobName)),
+  NewExtractorRef = erlang:monitor(process, Extractor),
+  NewExtractorRefs = gb_sets:insert(NewExtractorRef, gb_sets:delete(ExtractorRef, ExtractorRefs)),
+  {noreply, S#state{extractors = NewExtractorRefs}}.

@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/3, stop/1, wait_for_extractants/3]).
+-export([start_link/0, start_link/2, run/2, wait_for_extractants/4]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -22,16 +22,16 @@
   terminate/2,
   code_change/3]).
 
--define(SERVER, ?MODULE).
+-define(SERVER(JobName, ExtractorName), utilities:atom_concat(JobName, ExtractorName)).
 
--record(state, {extractor_module :: atom(), extractant_templates :: list(tuple()) | []}).
+-record(state, {job_name, extractor_name, extractor, extractor_state}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
--spec(stop(ExtractorName :: atom() | pid() | { atom(), _} | {'via', _, _}) -> ok).
-stop(ExtractorName) ->
-  gen_server:cast(ExtractorName, stop).
+-spec(run(JobName :: atom(), ExtractorName :: atom()) -> no_return()).
+run(JobName, ExtractorName) ->
+  gen_server:cast(?SERVER(JobName, ExtractorName), run).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -39,10 +39,16 @@ stop(ExtractorName) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(start_link(ExtractorName :: atom(), ExtractorModule :: module(), Options :: list(tuple())) ->
+-spec(start_link(JobName :: term(),
+    {ExtractorName :: atom(), ExtractorModule :: module(), Options :: list(tuple())} | none()) ->
   {ok, Pid :: pid()} | ignore | {error, Reason :: term()}).
-start_link(ExtractorName, ExtractorModule, Options) ->
-  gen_server:start_link({local, ExtractorName}, ?MODULE, [ExtractorName, ExtractorModule, Options], []).
+
+start_link() ->
+  {ok, #state{}}.
+
+start_link(JobName, {ExtractorName, ExtractorModule, Options}) ->
+  gen_server:start_link({local, ?SERVER(JobName, ExtractorName)}, ?MODULE,
+    [JobName, ExtractorName, ExtractorModule, Options], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -59,12 +65,13 @@ start_link(ExtractorName, ExtractorModule, Options) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
--spec(init(Args :: term()) -> 'ignore' | {'ok',_} | {'stop',_} | {'ok',_,'hibernate' | 'infinity' | non_neg_integer()}).
-init([ExtractorName, ExtractorModule, Options]) ->
-  ExtractantTemplates = ExtractorModule:init(Options),
-  start_listener(ExtractorName, ExtractorModule, ExtractantTemplates),
-  State = #state{extractor_module = ExtractorModule, extractant_templates = ExtractantTemplates},
-  {ok, State}.
+-spec(init(Args :: term()) ->
+  {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
+  {stop, Reason :: term()} | ignore).
+
+init([JobName, ExtractorName, ExtractorModule, Options]) ->
+  {ok, ExtractantTemplates} = ExtractorModule:init(Options),
+  {ok, #state{job_name = JobName, extractor_name = ExtractorName, extractor = ExtractorModule, extractor_state = ExtractantTemplates}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -81,6 +88,7 @@ init([ExtractorName, ExtractorModule, Options]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -95,14 +103,17 @@ handle_call(_Request, _From, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_cast({extract, ExtractorName, Extractants}, State) ->
-  Extractor = State#state.extractor_module,
-  Extractor:extract(Extractants),
-  start_listener(ExtractorName, Extractor, State#state.extractant_templates),
-  {noreply, State};
 
-handle_cast(stop, State) ->
-  {stop, normal, State};
+handle_cast(run,
+    S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor, extractor_state = ExtractantTemplates}) ->
+  start_listener(JobName, ExtractorName, Extractor, ExtractantTemplates),
+  {noreply, S};
+
+handle_cast({extract, Extractants},
+    S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor, extractor_state = ExtractantTemplates}) ->
+  Extractor:extract(self(), Extractants),
+  start_listener(JobName, ExtractorName, Extractor, ExtractantTemplates),
+  {noreply, S};
 
 handle_cast(_Request, State) ->
   {noreply, State}.
@@ -121,6 +132,7 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}} |
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
+
 handle_info(_Info, State) ->
   {noreply, State}.
 
@@ -157,17 +169,17 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
--spec(start_listener(ExtractorName :: atom(), Extractor :: module(), ExtractantTemplates :: list(tuple()))
+-spec(start_listener(JobName :: term(), ExtractorName :: atom(), Extractor :: module(), ExtractantTemplates :: list(tuple()))
       -> no_return()).
-start_listener(ExtractorName, Extractor, ExtractantTemplates) ->
-  spawn_link(?MODULE, wait_for_extractants, [ExtractorName, Extractor, ExtractantTemplates]).
+start_listener(JobName, ExtractorName, Extractor, ExtractantTemplates) ->
+  spawn_link(?MODULE, wait_for_extractants, [JobName, ExtractorName, Extractor, ExtractantTemplates]).
 
--spec(wait_for_extractants(ExtractorName :: atom(), Extractor :: module(), ExtractantTemplates :: list(tuple())) -> no_return()).
-wait_for_extractants(ExtractorName, Extractor, ExtractantTemplates) when is_atom(Extractor), is_list(ExtractantTemplates) ->
+-spec(wait_for_extractants(JobName :: term(), ExtractorName :: atom(), Extractor :: module(), ExtractantTemplates :: list(tuple())) -> no_return()).
+wait_for_extractants(JobName, ExtractorName, Extractor, ExtractantTemplates) when is_atom(Extractor), is_list(ExtractantTemplates) ->
   InMap = fun
     (ExtractantTemplate) when is_tuple(ExtractantTemplate) ->
       tuple_space_server:in(ExtractantTemplate)
   end,
   Extractants = utilities:pmap(InMap, ExtractantTemplates),
   %% Send Extractants to extractor process
-  gen_server:cast(ExtractorName, {extract, ExtractorName, Extractants}).
+  gen_server:cast(?SERVER(JobName, ExtractorName), {extract, Extractants}).
