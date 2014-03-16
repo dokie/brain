@@ -1,6 +1,6 @@
 {application,brain,
              [{description,"The brain is a distributed Tuplespace"},
-              {vsn,"0.0.2"},
+              {vsn,"0.0.3"},
               {registered,[brain]},
               {applications,[kernel,stdlib]},
               {mod,{brain_app,[]}},
@@ -8,7 +8,7 @@
               {modules,[brain,brain_app,brain_sup,extractor,extractor_server,
                         extractor_sup,factory,factory_server,factory_sup,
                         generator,generator_server,generator_sup,job_server,
-                        job_sup,reactor,reactor_server,reactor_sup,
-                        simple_extractor,simple_factory,simple_generator,
-                        simple_reactor,tuple_space,tuple_space_server,
-                        utilities]}]}.
+                        job_sup,mergesort_factory,mergesort_splitter,reactor,
+                        reactor_server,reactor_sup,simple_extractor,
+                        simple_factory,simple_generator,simple_reactor,
+                        tuple_space,tuple_space_server,utilities]}]}.

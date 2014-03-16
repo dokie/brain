@@ -10,8 +10,8 @@
 -author("dokie").
 
 %% Behaviour
--callback init(Options :: list(term())) -> {ok, Templates :: list(tuple())}.
+-callback init(Options :: list(term())) -> {ok, {Templates :: list(tuple()), State :: term()}}.
 
--callback react(From :: atom() | pid() | port() | {atom(),atom()}, Reactants :: list(tuple())) -> ok.
+-callback react(From :: atom() | pid() | port() | {atom(),atom()}, {Reactants :: list(tuple()), State :: term()}) -> ok.
 
 

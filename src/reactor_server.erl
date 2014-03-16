@@ -71,8 +71,9 @@ start_link(JobName, {ReactorName, ReactorModule, Options}) ->
   {stop, Reason :: term()} | ignore).
 
 init([JobName, ReactorName, ReactorModule, Options]) ->
-  {ok, ReactantTemplates} = ReactorModule:init(Options),
-  {ok, #state{job_name = JobName, reactor_name = ReactorName, reactor = ReactorModule, reactor_state = ReactantTemplates}}.
+  {ok, {ReactantTemplates, ReactorState}} = ReactorModule:init(Options),
+  {ok, #state{job_name = JobName, reactor_name = ReactorName, reactor = ReactorModule,
+    reactor_state = {ReactantTemplates, ReactorState}}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -106,13 +107,15 @@ handle_call(_Request, _From, State) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_cast(run,
-    S = #state{job_name = JobName, reactor_name = ReactorName, reactor = Reactor, reactor_state = ReactantTemplates}) ->
+    S = #state{job_name = JobName, reactor_name = ReactorName, reactor = Reactor,
+          reactor_state = {ReactantTemplates, _ReactorState}}) ->
   start_listener(JobName, ReactorName, Reactor, ReactantTemplates),
   {noreply, S};
 
 handle_cast({react, Reactants},
-    S = #state{job_name = JobName, reactor_name = ReactorName, reactor = Reactor, reactor_state = ReactantTemplates}) ->
-  Reactor:react(self(), Reactants),
+    S = #state{job_name = JobName, reactor_name = ReactorName, reactor = Reactor,
+      reactor_state = {ReactantTemplates, ReactorState}}) ->
+  Reactor:react(self(), {Reactants, ReactorState}),
   start_listener(JobName, ReactorName, Reactor, ReactantTemplates),
   {noreply, S};
 
@@ -134,13 +137,13 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_info({products, Products}, State) ->
+handle_info({{products, Products}, ReactorState}, _State) ->
   OutMap = fun
     (Product) when is_tuple(Product) ->
       tuple_space_server:out(Product)
   end,
   utilities:pmap(OutMap, Products),
-  {noreply, State};
+  {noreply, ReactorState};
 
 handle_info(_Info, State) ->
   {noreply, State}.
@@ -189,7 +192,8 @@ start_listener(JobName, ReactorName, Reactor, ReactantTemplates) ->
 -spec(wait_for_reactants(JobName :: term(), ReactorName :: atom(),
     Reactor :: module(), ReactantTemplates :: list(tuple())) -> no_return()).
 
-wait_for_reactants(JobName, ReactorName, Reactor, ReactantTemplates) when is_atom(Reactor), is_list(ReactantTemplates) ->
+wait_for_reactants(JobName, ReactorName, Reactor, ReactantTemplates)
+    when is_atom(Reactor), is_list(ReactantTemplates) ->
   InMap = fun
     (ReactantTemplate) when is_tuple(ReactantTemplate) ->
       tuple_space_server:in(ReactantTemplate)
