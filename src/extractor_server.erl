@@ -70,8 +70,9 @@ start_link(JobName, {ExtractorName, ExtractorModule, Options}) ->
   {stop, Reason :: term()} | ignore).
 
 init([JobName, ExtractorName, ExtractorModule, Options]) ->
-  {ok, ExtractantTemplates} = ExtractorModule:init(Options),
-  {ok, #state{job_name = JobName, extractor_name = ExtractorName, extractor = ExtractorModule, extractor_state = ExtractantTemplates}}.
+  {ok, {ExtractantTemplates, ExtractorState}} = ExtractorModule:init(Options),
+  {ok, #state{job_name = JobName, extractor_name = ExtractorName, extractor = ExtractorModule,
+    extractor_state = {ExtractantTemplates, ExtractorState}}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -105,13 +106,15 @@ handle_call(_Request, _From, State) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_cast(run,
-    S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor, extractor_state = ExtractantTemplates}) ->
+    S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor,
+      extractor_state = {ExtractantTemplates, _ExtractorState}}) ->
   start_listener(JobName, ExtractorName, Extractor, ExtractantTemplates),
   {noreply, S};
 
 handle_cast({extract, Extractants},
-    S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor, extractor_state = ExtractantTemplates}) ->
-  Extractor:extract(self(), Extractants),
+    S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor,
+      extractor_state = {ExtractantTemplates, ExtractorState}}) ->
+  Extractor:extract(self(), {Extractants, ExtractorState}),
   start_listener(JobName, ExtractorName, Extractor, ExtractantTemplates),
   {noreply, S};
 

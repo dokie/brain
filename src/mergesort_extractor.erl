@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 18. Feb 2014 12:06
 %%%-------------------------------------------------------------------
--module(simple_extractor).
+-module(mergesort_extractor).
 -author("mike").
 
 -behaviour(extractor).
@@ -16,12 +16,12 @@
 
 -spec(init(Options :: list()) -> {ok, {ExtractantTemplates :: list(tuple()), State :: term()}}).
 
-init(_Options) ->
-  {ok, {[{simple_product, float}], ok}}.
+init([N]) when is_integer(N), N > 0 ->
+  {ok, {[{mergesort, merged, [{int, N}]}], N}}.
 
 -spec(extract(From :: atom() | pid() | port() | {atom(),atom()},
-  {Extractants :: [{'simple_product',float()},...], State :: term()}) -> ok).
+  {Extractants :: [{mergesort, merged, list()},...], State :: term()}) -> ok).
 
-extract(_From, {[{simple_product, X}], ok}) when is_float(X) ->
-  io:format("Extracted ~p~n", [{simple_product, X}]),
+extract(_From, {[{mergesort, merged, Results}], N}) when is_integer(N), N > 0, is_list(Results) ->
+  lists:foreach(fun (I) -> io:format("~p~n", [I]) end, Results),
   ok.
