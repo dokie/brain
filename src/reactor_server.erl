@@ -143,7 +143,7 @@ handle_info({{products, Products}, ReactorState},
     (Product) when is_tuple(Product) ->
       tuple_space_server:out(Product)
   end,
-  utilities:pmap(OutMap, Products),
+  utilities:pforeach(OutMap, Products),
   NewState = S#state{reactor_state = {ReactantTemplates, ReactorState}},
   {noreply, NewState};
 

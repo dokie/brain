@@ -10,7 +10,7 @@
 -author("dokie").
 
 %% API
--export([pmap/2, key/1, each_with_index/2, atom_concat/2]).
+-export([pmap/2, pforeach/2, key/1, each_with_index/2, atom_concat/2]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -35,6 +35,10 @@ gather_results([]) ->
 
 execute_and_report(Parent, F, Elem) ->
   Parent ! {self(), (catch F(Elem))}.
+
+-spec(pforeach(F :: fun((E :: any()) -> any()), L :: list()) -> ok).
+pforeach(F, L) when is_function(F), is_list(L) ->
+  lists:foreach(fun(Elem) -> spawn(fun() -> catch F(Elem) end) end, L).
 
 %%--------------------------------------------------------------------
 %% @doc
