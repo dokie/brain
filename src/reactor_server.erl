@@ -137,13 +137,15 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_info({{products, Products}, ReactorState}, _State) ->
+handle_info({{products, Products}, ReactorState},
+    S = #state{reactor_state = {ReactantTemplates, _ReactorState}}) ->
   OutMap = fun
     (Product) when is_tuple(Product) ->
       tuple_space_server:out(Product)
   end,
   utilities:pmap(OutMap, Products),
-  {noreply, ReactorState};
+  NewState = S#state{reactor_state = {ReactantTemplates, ReactorState}},
+  {noreply, NewState};
 
 handle_info(_Info, State) ->
   {noreply, State}.

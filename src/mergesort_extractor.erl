@@ -23,5 +23,6 @@ init([N]) when is_integer(N), N > 0 ->
   {Extractants :: [{mergesort, merged, list()},...], State :: term()}) -> ok).
 
 extract(_From, {[{mergesort, merged, Results}], N}) when is_integer(N), N > 0, is_list(Results) ->
-  lists:foreach(fun (I) -> io:format("~p~n", [I]) end, Results),
+  lists:foreach(fun (I) -> io:format("~p,", [I]) end, Results),
+  io:format("~n",[]),
   ok.

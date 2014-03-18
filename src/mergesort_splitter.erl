@@ -18,7 +18,7 @@
 init([N, M]) when is_integer(N), is_integer(M), M < N, M > 0 ->
   {ok, {[{mergesort, unsorted, [{int, N}]}], M}}.
 
--spec(react(From :: atom() | pid() | port() | {atom(),atom()}, {Reactants :: [{'simple',float()},...], State :: term()})
+-spec(react(From :: atom() | pid() | port() | {atom(),atom()}, {Reactants :: [{mergesort,unsorted, list()},...], State :: term()})
       -> 'ok').
 react(From, {[{mergesort, unsorted, L}], M}) when is_list(L), M < length(L), M > 0 ->
   Products = split_list(L, M, []),

@@ -9,7 +9,7 @@
                         extractor_sup,factory,factory_server,factory_sup,
                         generator,generator_server,generator_sup,job_server,
                         job_sup,mergesort_extractor,mergesort_factory,
-                        mergesort_splitter,reactor,reactor_server,reactor_sup,
-                        simple_extractor,simple_factory,simple_generator,
-                        simple_reactor,tuple_space,tuple_space_server,
-                        utilities]}]}.
+                        mergesort_merger,mergesort_sorter,mergesort_splitter,
+                        reactor,reactor_server,reactor_sup,simple_extractor,
+                        simple_factory,simple_generator,simple_reactor,
+                        tuple_space,tuple_space_server,utilities]}]}.
