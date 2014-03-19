@@ -27,12 +27,15 @@ start() ->
 stop() ->
   application:stop(brain).
 %% =========== brain supervisor ============
+-spec(specify_job(JobName :: atom(), JobSpec :: dict()) -> ok).
 specify_job(JobName, JobSpec) ->
   brain_sup:specify_job(JobName, JobSpec).
 
+-spec(run_job(JobName :: atom()) -> ok).
 run_job(JobName) ->
   brain_sup:run_job(JobName).
 
+-spec(complete_job(JobName :: atom()) -> ok).
 complete_job(JobName) ->
   brain_sup:complete_job(JobName).
 %% =========== job server ===================
