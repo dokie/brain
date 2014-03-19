@@ -165,7 +165,7 @@ count(Template) when is_tuple(Template) ->
   {ok, State :: #tuplespace{}} | {ok, State :: #tuplespace{}, timeout() | hibernate} |
   {stop, Reason :: term()} | ignore).
 init([]) ->
-  {ok, #tuplespace{tuples = ets:new(tuples, [bag, named_table]),
+  {ok, #tuplespace{tuples = ets:new(tuples, [set, named_table]),
               tuple_requests = ets:new(tuple_requests, [bag, named_table])
   }}.
 
@@ -272,7 +272,7 @@ handle_info({Worker, Ref, query, Spec}, State) ->
 %% --------------- SENDING BACK --------------------------------
 handle_info({Worker, done, in, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
-  Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
+  Stripped = strip(Tuple),
   ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
   reply_to_request(Request, Stripped),
   cleanup_request(Worker),
@@ -285,7 +285,7 @@ handle_info({Worker, done, inp, null}, State) ->
 
 handle_info({Worker, done, inp, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
-  Stripped = list_to_tuple(tl(tuple_to_list(Tuple))), %% Strip off UUID
+  Stripped = strip(Tuple),
   ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
   reply_to_request(Request, Stripped),
   {noreply, State};
@@ -299,11 +299,19 @@ handle_info({Worker, done, _Mode, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   Result =
   if is_tuple(Tuple) ->
-        list_to_tuple(tl(tuple_to_list(Tuple))); %% Strip off UUID
+      strip(Tuple);
      true ->
       Tuple
   end,
   reply_to_request(Request, Result),
+  {noreply, State};
+
+handle_info({dirty, Key}, State) ->
+  ets:update_element(tuples, Key, {2, true}),
+  {noreply, State};
+
+handle_info({clean, Key}, State) ->
+  ets:update_element(tuples, Key, {2, false}),
   {noreply, State};
 
 handle_info({expired, Tuple}, State) ->
@@ -317,6 +325,10 @@ handle_info({'EXIT', Pid, _}, State) ->
   InRequest = ets:lookup(tuple_requests, Pid),
   ok = reply_to_request(InRequest, null),
   {noreply, State}.
+
+strip(Tuple) ->
+  TupleAsList = tuple_to_list(Tuple),
+  list_to_tuple(lists:sublist(TupleAsList, 3, length(TupleAsList))).
 
 reply_to_request([], _Reply) ->
   ok;

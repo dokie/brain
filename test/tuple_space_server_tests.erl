@@ -313,13 +313,35 @@ simple_record(_Pid) ->
 
 tuple_space_locking_test_() ->
   [{"Test of dual inp",
-   ?setup(fun locked_inp/1)}].
+   ?setup(fun locked_inp/1)},
+   {"Test of varied queries inp",
+   ?setup(fun varied_queries_inp/1)}].
 
 locked_inp(_Pid) ->
   ok = ?SERVER:out({dual, "Fuel"}),
   Match = utilities:pmap(fun (_E) -> ?SERVER:inp({dual, string}) end, lists:seq(1,5)),
   Count = length(lists:filter(fun (E) -> null =:= E end, Match)),
   [?_assertEqual(4, Count)].
+
+varied_queries_inp(_Pid) ->
+  ok = ?SERVER:out({varied, "Fuel"}),
+  ok = ?SERVER:out({varied, fuel}),
+  ok = ?SERVER:out({varied, 1}),
+  ok = ?SERVER:out({varied, 5}),
+  ok = ?SERVER:out({varied, 5.0}),
+  Selector = fun ({varied, Other}) ->
+    case Other of
+      "Fuel" -> ?SERVER:inp({varied, string});
+      fuel -> ?SERVER:inp({varied, atom});
+      I when is_integer(I) and I > 1 -> ?SERVER:inp({varied, fun (I) -> I > 1 end});
+      I when is_integer(I) -> ?SERVER:inp({varied, integer});
+      F when is_float(F) -> ?SERVER:inp({varied, float});
+      true -> ?SERVER:inp({varied, any})
+    end
+   end,
+  Match = utilities:pmap(Selector, lists:seq(1,5)),
+  Count = length(lists:filter(fun (E) -> null =:= E end, Match)),
+  [?_assertEqual(0, Count)].
 
 tuple_space_ttl_test_() ->
   [{"Test of ttl removes correctly",

@@ -27,7 +27,7 @@
 out(Tuple) ->
   %% Augment Tuple with UUID
   Uuid = uuid:to_string(simple,uuid:uuid4()),
-  list_to_tuple([Uuid] ++ tuple_to_list(Tuple)).
+  list_to_tuple([Uuid] ++ [false] ++ tuple_to_list(Tuple)).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -52,13 +52,12 @@ out(Tuple, Ttl, Caller) ->
 %%--------------------------------------------------------------------
 -spec(expired(Tuple :: tuple(), Server :: pid()) -> no_return()).
 expired(Tuple, Server) when is_tuple(Tuple) ->
-  Nodes = [node()],
   Ref = make_ref(),
-  Id = {tuples, Ref},
-  case global:set_lock(Id, Nodes) of
+  Id = {{expired, Tuple}, Ref},
+  case lock(Id) of
     true ->
       Server ! {expired, Tuple},
-      global:del_lock(Id, Nodes);
+      unlock(Id);
 
     false ->
       nolock
@@ -75,11 +74,15 @@ expired(Tuple, Server) when is_tuple(Tuple) ->
 -spec in(Template :: tuple(), Caller :: pid()) -> done.
 
 in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  selector(in, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  selector(in, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+
+make_matchhead(Template) ->
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 2)]),
+  MatchHead.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -92,26 +95,29 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 -spec inp(Template :: tuple(), Caller :: pid()) -> nolock | true.
 
 inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  locate(inp, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  locate(inp, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateList), is_pid(Server) ->
-  Id = {tuples, Ref},
-  Nodes = [node()],
-  case global:set_lock(Id, Nodes) of
+  Id = {{Mode, TemplateList, MatchHead, Guard}, Ref},
+  case lock(Id) of
     true ->
       Matches = execute_query(Server, MatchHead, Guard, Ref, TemplateList),
       case Matches of
         [] ->
-          Server ! {self(), done, Mode, null};
+        unlock(Id),
+        Server ! {self(), done, Mode, null};
 
         [H|_] ->
+          Key = lists:nth(1, H),
+          Server ! {dirty, Key},
+          unlock(Id),
+          Server ! {clean, Key},
           Server ! {self(), done, Mode, list_to_tuple(H)}
-      end,
-      global:del_lock(Id, Nodes);
+      end;
 
     false ->
       nolock
@@ -136,10 +142,10 @@ execute_query(Server, MatchHead, Guard, Ref, TemplateList) ->
 
 rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
   Ref = make_ref(),
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  selector(rd, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  selector(rd, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -152,10 +158,10 @@ rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 -spec rdp(Template :: term(), Caller :: pid()) -> nolock | true.
 
 rdp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),  Ref = make_ref(),
-  locate(rdp, [any] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  locate(rdp, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -187,17 +193,16 @@ eval(Specification) when is_tuple(Specification) ->
 -spec count(Template :: tuple(), Caller :: pid() | port() | {atom(),atom()}) -> nolock | true.
 
 count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 1)]),
+  MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  Id = {tuples, Ref},
-  Nodes = [node()],
-  case global:set_lock(Id, Nodes) of
+  Id = {{count, TemplateList, MatchHead, Guard}, Ref},
+  case lock(Id) of
     true ->
-      Matches = execute_query(Caller, MatchHead, Guard, Ref, [any] ++ TemplateList),
+      Matches = execute_query(Caller, MatchHead, Guard, Ref, [any, false] ++ TemplateList),
       Caller ! {self(), done, count, length(Matches)},
-      global:del_lock(Id, Nodes);
+      unlock(Id);
     false ->
       nolock
   end.
@@ -205,18 +210,20 @@ count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
 selector(Mode, TemplateList, MatchHead, Guard, Server, Ref) ->
-  Id = {tuples, Ref},
-  Nodes = [node()],
-  case global:set_lock(Id, Nodes) of
+  Id = {{Mode, TemplateList, MatchHead, Guard}, Ref},
+  case lock(Id) of
     true ->
       case (execute_query(Server, MatchHead, Guard, Ref, TemplateList)) of
         [] ->
-          global:del_lock(Id, Nodes),
+          unlock(Id),
           timer:sleep(?WAIT),
           selector(Mode, TemplateList, MatchHead, Guard, Server, Ref);
         [H|_] ->
+          Key = lists:nth(1, H),
+          Server ! {dirty, Key},
+          unlock(Id),
+          Server ! {clean, Key},
           Server ! {self(), done, Mode, list_to_tuple(H)},
-          global:del_lock(Id, Nodes),
           done
       end;
     false ->
@@ -232,7 +239,7 @@ find_all_selections(Server, MatchHead, Guard, Ref) ->
   end.
 
 make_guard(TemplateList) ->
-  Mapper = fun (E, I) -> guard(E, I + 1) end,
+  Mapper = fun (E, I) -> guard(E, I + 2) end,
   BareGuard = utilities:each_with_index(Mapper, TemplateList),
   Stripper = fun (Elem) -> Elem /= {} end,
   lists:filter(Stripper, BareGuard).
@@ -341,3 +348,11 @@ match(TemplateFuns = [TH|TT], TupleList = [H|T], Acc) ->
     false ->
       Acc and false
   end.
+
+lock(Id) ->
+  Nodes = [node()],
+  global:set_lock(Id, Nodes).
+
+unlock(Id) ->
+  Nodes = [node()],
+  global:del_lock(Id, Nodes).
