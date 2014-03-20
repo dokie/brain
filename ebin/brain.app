@@ -10,7 +10,8 @@
                         generator,generator_server,generator_sup,job_server,
                         job_sup,mergesort_extractor,mergesort_factory,
                         mergesort_merger,mergesort_sorter,mergesort_splitter,
-                        p_mergesort_merger,p_mergesort_sorter,reactor,
-                        reactor_server,reactor_sup,simple_extractor,
-                        simple_factory,simple_generator,simple_reactor,
-                        tuple_space,tuple_space_server,utilities]}]}.
+                        p_mergesort_merger,p_mergesort_sorter,
+                        rabbitmq_generator,reactor,reactor_server,reactor_sup,
+                        simple_extractor,simple_factory,simple_generator,
+                        simple_reactor,tuple_space,tuple_space_server,
+                        utilities]}]}.
