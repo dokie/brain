@@ -13,7 +13,8 @@
 -export([out/1, out/3, in/2, inp/2, rd/2, rdp/2, eval/1, count/2, expired/2]).
 
 %% Definitions
--define(WAIT, 50).
+-define(WAIT_MIN, 50).
+-define(WAIT_MAX, 250).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -216,7 +217,8 @@ selector(Mode, TemplateList, MatchHead, Guard, Server, Ref) ->
       case (execute_query(Server, MatchHead, Guard, Ref, TemplateList)) of
         [] ->
           unlock(Id),
-          timer:sleep(?WAIT),
+          WaitPeriod = random:uniform(?WAIT_MAX - ?WAIT_MIN) + ?WAIT_MIN - 1,
+          timer:sleep(WaitPeriod),
           selector(Mode, TemplateList, MatchHead, Guard, Server, Ref);
         [H|_] ->
           Key = lists:nth(1, H),
