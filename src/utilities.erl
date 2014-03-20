@@ -54,13 +54,22 @@ key(T) when is_tuple(T) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% A concatonate 2 atoms into one
+%% Concatonate 2 atoms into one
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(atom_concat(First :: atom(), Second :: atom()) -> atom()).
+-spec(atom_concat(First :: atom(), Second :: atom() | integer()) -> atom()).
 atom_concat(First, Second) when is_atom(First), is_atom(Second) ->
-  list_to_atom(atom_to_list(First) ++ ("_" ++ atom_to_list(Second))).
+  list_to_atom(atom_to_list(First) ++ ("_" ++ atom_to_list(Second)));
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Concatonate an atom and an integer into an atom
+%%
+%% @end
+%%--------------------------------------------------------------------
+atom_concat(First, Second) when is_atom(First), is_integer(Second) ->
+  list_to_atom(atom_to_list(First) ++ ("_" ++ integer_to_list(Second))).
 
 %%--------------------------------------------------------------------
 %% @private

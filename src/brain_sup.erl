@@ -4,6 +4,7 @@
 
 %% API
 -export([start_link/0, specify_job/2, run_job/1, complete_job/1]).
+-export([expand/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -29,7 +30,27 @@ specify_job(JobName, Job) ->
 
 -spec(expand(Job :: dict()) -> tuple()).
 expand(Job) ->
-  ok.
+  %% Expand each section of the Job
+  FactoryDefs = dict:fetch(factories, Job),
+  FactorySpecs = enumerate_defs(FactoryDefs, []),
+  GeneratorDefs = dict:fetch(generators, Job),
+  GeneratorSpecs = enumerate_defs(GeneratorDefs, []),
+  ReactorDefs = dict:fetch(reactors, Job),
+  ReactorSpecs = enumerate_defs(ReactorDefs, []),
+  ExtractorDefs = dict:fetch(extractors, Job),
+  ExtractorSpecs = enumerate_defs(ExtractorDefs, []),
+  {factories, FactorySpecs, generators, GeneratorSpecs, reactors, ReactorSpecs, extractors, ExtractorSpecs}.
+
+enumerate_defs([], Results) ->
+  Results;
+
+enumerate_defs([{Name, Module, Options, Count}|T], Results) when is_integer(Count), Count > 1 ->
+  Updated = [{utilities:atom_concat(Name, Count), Module, Options}|Results],
+  enumerate_defs([{Name, Module, Options, Count - 1}|T], Updated);
+
+enumerate_defs([{Name, Module, Options, 1}|T], Results) ->
+  Updated = [{utilities:atom_concat(Name, 1), Module, Options}|Results],
+  enumerate_defs(T, Updated).
 
 -spec(complete_job(JobName :: atom()) -> ok).
 complete_job(JobName) ->
