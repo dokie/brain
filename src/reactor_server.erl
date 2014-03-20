@@ -24,7 +24,7 @@
 
 -define(SERVER(JobName, ReactorName), utilities:atom_concat(JobName, ReactorName)).
 
--record(state, {job_name, reactor_name, reactor, reactor_state}).
+-record(state, {job_name, reactor_name, reactor, reactor_state, listener}).
 
 %%%===================================================================
 %%% API
@@ -73,7 +73,7 @@ start_link(JobName, {ReactorName, ReactorModule, Options}) ->
 init([JobName, ReactorName, ReactorModule, Options]) ->
   {ok, {ReactantTemplates, ReactorState}} = ReactorModule:init(Options),
   {ok, #state{job_name = JobName, reactor_name = ReactorName, reactor = ReactorModule,
-    reactor_state = {ReactantTemplates, ReactorState}}}.
+    reactor_state = {ReactantTemplates, ReactorState}, listener = null}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -107,17 +107,22 @@ handle_call(_Request, _From, State) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_cast(run,
-    S = #state{job_name = JobName, reactor_name = ReactorName, reactor = Reactor,
-          reactor_state = {ReactantTemplates, _ReactorState}}) ->
-  start_listener(JobName, ReactorName, Reactor, ReactantTemplates),
-  {noreply, S};
+  S = #state{job_name = JobName, reactor_name = ReactorName, reactor = Reactor,
+          reactor_state = {ReactantTemplates, _ReactorState}, listener = Listener}) ->
+  if
+    null =:= Listener ->
+      NewState = S#state{listener = start_listener(JobName, ReactorName, Reactor, ReactantTemplates)},
+      {noreply, NewState};
+    true ->
+      {noreply, S}
+  end;
 
 handle_cast({react, Reactants},
     S = #state{job_name = JobName, reactor_name = ReactorName, reactor = Reactor,
       reactor_state = {ReactantTemplates, ReactorState}}) ->
   Reactor:react(self(), {Reactants, ReactorState}),
-  start_listener(JobName, ReactorName, Reactor, ReactantTemplates),
-  {noreply, S};
+  NewState = S#state{listener = start_listener(JobName, ReactorName, Reactor, ReactantTemplates)},
+  {noreply, NewState};
 
 handle_cast(_Request, State) ->
   {noreply, State}.

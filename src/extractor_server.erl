@@ -24,7 +24,7 @@
 
 -define(SERVER(JobName, ExtractorName), utilities:atom_concat(JobName, ExtractorName)).
 
--record(state, {job_name, extractor_name, extractor, extractor_state}).
+-record(state, {job_name, extractor_name, extractor, extractor_state, listener}).
 
 %%%===================================================================
 %%% API
@@ -72,7 +72,7 @@ start_link(JobName, {ExtractorName, ExtractorModule, Options}) ->
 init([JobName, ExtractorName, ExtractorModule, Options]) ->
   {ok, {ExtractantTemplates, ExtractorState}} = ExtractorModule:init(Options),
   {ok, #state{job_name = JobName, extractor_name = ExtractorName, extractor = ExtractorModule,
-    extractor_state = {ExtractantTemplates, ExtractorState}}}.
+    extractor_state = {ExtractantTemplates, ExtractorState}, listener = null}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -106,10 +106,15 @@ handle_call(_Request, _From, State) ->
   {stop, Reason :: term(), NewState :: #state{}}).
 
 handle_cast(run,
-    S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor,
-      extractor_state = {ExtractantTemplates, _ExtractorState}}) ->
-  start_listener(JobName, ExtractorName, Extractor, ExtractantTemplates),
-  {noreply, S};
+  S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor,
+  extractor_state = {ExtractantTemplates, _ExtractorState}, listener = Listener}) ->
+  if
+    null =:= Listener ->
+      NewState = S#state{listener = start_listener(JobName, ExtractorName, Extractor, ExtractantTemplates)},
+      {noreply, NewState};
+    true ->
+      {noreply, S}
+  end;
 
 handle_cast({extract, Extractants},
     S = #state{job_name = JobName, extractor_name = ExtractorName, extractor = Extractor,
