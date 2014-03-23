@@ -1,0 +1,151 @@
+package i2OWater.Anapos.Governance;
+
+// events
+
+message MessageHandlerActivated {
+ required Instruction instruction = 1;
+ required string message_handler_name = 2;
+ repeated string message_type_ids = 3;
+ required sfixed64 replay_from = 4; 
+ extensions 100 to 120; 
+}
+
+message ResourceSaved {
+ required Instruction instruction = 1;
+ required string resource_type = 2;
+ required string resource_id = 3;
+ required int32 resource_version = 4;
+ required string resource = 5; 
+ extensions 100 to 120; 
+}
+
+// requests/responses
+
+message StandardResponse {
+ required Response root_response = 1;
+ extensions 100 to 120; 
+}
+
+message FailureResponse {
+ required Response root_response = 1;
+ required string error = 2; 
+ extensions 100 to 120; 
+}
+
+// service events
+
+message StateChanged {
+  required Instruction instruction = 1;
+  repeated StateChange state_changes = 3; 
+  extensions 100 to 120;
+}
+
+message ResourcesChanged {
+  required Instruction instruction = 1;
+  repeated ResourceChange resource_changes = 3; 
+  extensions 100 to 120;
+}
+
+// base messages
+
+message Command {
+  required Instruction instruction = 1; 
+  required string aggregate_root_id = 2; 
+  optional SerializedMessage compensating_command = 3;  
+  extensions 100 to 120; 
+}
+
+message EnterpriseEvent {
+  required Instruction instruction = 1; 
+  optional sfixed64 started = 2; 
+  optional sfixed64 ended = 3; 
+  optional GeographicCoordinates geographic_location = 4;
+  optional string group = 5;
+  // SLOT 6 PREVIOUSLY USED
+  extensions 100 to 120; 
+}
+
+message Instruction {
+  required string id = 1; 
+  required string type = 2; 
+  required sfixed64 created = 3; 
+  required string source = 4; 
+  required string source_machine_name = 5;
+  required string tenant_code = 6; 
+  optional sfixed64 ttl = 7 [default = 0]; 
+  optional uint32 priority = 8 [default = 0]; 
+  optional string username = 9; 
+  repeated string causality_vector = 10; 
+  optional string causal_request_id = 11; 
+  optional string support_id = 12;
+  optional string why = 13;
+  extensions 100 to 120; 
+}
+
+message Request {
+  required Instruction instruction = 1;
+  optional string aggregate_root_id = 2;
+  extensions 100 to 120; 
+}
+
+message Response {
+  required Instruction instruction = 1; 
+  required string causality = 2; 
+  optional string failure = 3; 
+  optional bool was_state_modified = 4; 
+  extensions 100 to 120; 
+}
+
+// sub messages
+
+message Change {
+  required string action = 1;
+  required string path = 2;
+  required string type_id = 3;
+  required string value = 4;
+  extensions 100 to 120;
+}
+
+message GeographicCoordinates {
+  required double longitude = 1; 
+  required double latitude = 2; 
+  optional double altitude = 3; 
+  extensions 100 to 120; 
+}
+
+message InputEndpointDetails {
+  required string name = 1;
+  repeated MessageHandlerDetails message_handlers = 2;
+  extensions 100 to 120; 
+}
+
+message MessageHandlerDetails {
+  required string type_name = 1;
+  required string group_name = 2;
+  required string message_type = 3;
+  extensions 100 to 120; 
+}
+
+message ResourceChange {
+  required string resource_type_id = 1;
+  required string resource_id = 2;
+  required int32 resource_version = 3;
+  required string resource = 4; 
+  extensions 100 to 120;
+}
+
+message SerializedMessage {
+  required string type = 1; 
+  required bytes data = 2; 
+  extensions 100 to 120; 
+}
+
+message StateChange {
+  required string aggregate_type_id = 1;
+  required string aggregate_id = 2;
+  required int32 aggregate_version = 3;
+  required string aggregate = 4; 
+  required sfixed64 when_changed = 5;
+  extensions 100 to 120;
+}
+

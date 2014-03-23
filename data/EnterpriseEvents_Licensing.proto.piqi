@@ -1,0 +1,494 @@
+.protobuf-package "i2OWater.Anapos.Governance.EnterpriseEvents.Licensing"
+
+.import [ .module Governance ]
+
+.record [
+    .name NetworkMonitoringLicenceRegistered
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+]
+
+.record [
+    .name RemoteControlLicenceRegistered
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+]
+
+.record [
+    .name ConditionMonitoringLicenceRegistered
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+]
+
+.record [
+    .name ApiLicenceRegistered
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+]
+
+.record [
+    .name NetworkMonitoringLicenceActivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name RemoteControlLicenceActivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ConditionMonitoringLicenceActivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ApiLicenceActivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name NetworkMonitoringLicenceLocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name RemoteControlLicenceLocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ConditionMonitoringLicenceLocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ApiLicenceLocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name NetworkMonitoringLicenceUnlocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name RemoteControlLicenceUnlocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ConditionMonitoringLicenceUnlocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ApiLicenceUnlocked
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name NetworkMonitoringLicenceDeactivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name RemoteControlLicenceDeactivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ConditionMonitoringLicenceDeactivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name ApiLicenceDeactivated
+    .field [
+        .name root-event
+        .type Governance/EnterpriseEvent
+        .code 1
+    ]
+    .field [
+        .name licence-id
+        .type string
+        .code 2
+    ]
+    .field [
+        .name licence-type
+        .type LicenceType
+        .code 3
+    ]
+    .field [
+        .name target-id
+        .type string
+        .code 4
+    ]
+]
+
+.record [
+    .name LicenceType
+    .field [
+        .name licence-type-id
+        .type string
+        .code 1
+    ]
+    .field [
+        .name licence-type-name
+        .type string
+        .code 2
+    ]
+    .field [
+        .name product-name
+        .type string
+        .code 3
+    ]
+    .field [
+        .name licence-targets
+        .type string
+        .repeated
+        .code 4
+    ]
+    .field [
+        .name dependency-type-ids
+        .type string
+        .repeated
+        .code 5
+    ]
+]

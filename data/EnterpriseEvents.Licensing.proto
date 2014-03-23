@@ -1,0 +1,170 @@
+import "Governance.proto";
+
+package i2OWater.Anapos.Governance.EnterpriseEvents.Licensing;
+
+message NetworkMonitoringLicenceRegistered {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  extensions 100 to 120; 
+}
+
+message RemoteControlLicenceRegistered {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  extensions 100 to 120; 
+}
+
+message ConditionMonitoringLicenceRegistered {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  extensions 100 to 120; 
+}
+
+message ApiLicenceRegistered {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  extensions 100 to 120; 
+}
+
+message NetworkMonitoringLicenceActivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message RemoteControlLicenceActivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ConditionMonitoringLicenceActivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ApiLicenceActivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message NetworkMonitoringLicenceLocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message RemoteControlLicenceLocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ConditionMonitoringLicenceLocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ApiLicenceLocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message NetworkMonitoringLicenceUnlocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message RemoteControlLicenceUnlocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ConditionMonitoringLicenceUnlocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ApiLicenceUnlocked {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message NetworkMonitoringLicenceDeactivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message RemoteControlLicenceDeactivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ConditionMonitoringLicenceDeactivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+message ApiLicenceDeactivated {
+  required i2OWater.Anapos.Governance.EnterpriseEvent root_event = 1;
+  required string licence_id = 2; 
+  required LicenceType licence_type = 3; 
+  required string target_id = 4;
+  extensions 100 to 120; 
+}
+
+// sub messages
+
+message LicenceType {
+  required string licence_type_id = 1;
+  required string licence_type_name = 2;
+  required string product_name = 3;
+  repeated string licence_targets = 4;
+  repeated string dependency_type_ids = 5;
+  extensions 100 to 120; 
+}
