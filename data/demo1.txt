@@ -1,0 +1,23 @@
+Counter
+=======
+brain:start().
+CounterTemplate = {counter, 5}.
+Worker = fun () ->
+    {counter, Count} = tuple_space_server:in(CounterTemplate),
+    tuple_space_server:out({counter, Count+1})
+    end.
+spawn(Worker).
+tuple_space_server:out({counter, 5}).
+tuple_space_server:in({counter, int}).
+
+Hello World
+===========
+brain:start().
+HelloWorld = fun(I) ->
+    {count, J} = tuple_space_server:in({count, integer}),
+    tuple_space_server:out({count, J+1}),
+    io:format("Hello World from process ~w, count ~w~n", [I,J])
+    end.
+tuple_space_server:out({count, 0}).
+Generator = fun(I) -> tuple_space_server:eval({worker, HelloWorld(I)}) end.
+utilities:pmap(Generator, lists:seq(1,10)).
