@@ -23,7 +23,7 @@ run(From, State) when is_pid(From), is_number(State) ->
   if
     State < 11 ->
       NewState = State + 1,
-      From ! {ran, {simple, 1.23 * NewState}, NewState};
+      From ! {ran, [{simple, 1.23 * NewState}], NewState};
     true ->
       ok
   end.

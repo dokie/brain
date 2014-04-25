@@ -126,8 +126,8 @@ handle_cast(_Request, State) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), NewState :: #state{}}).
 
-handle_info({ran, Product, RanState}, State) ->
-  ok = tuple_space_server:out(Product),
+handle_info({ran, Products, RanState}, State) when is_list(Products) ->
+  ok = lists:foreach(fun (Product) -> ok = tuple_space_server:out(Product) end, Products),
   NewState = State#state{generator_state = RanState},
   {noreply, NewState};
 

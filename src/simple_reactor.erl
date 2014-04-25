@@ -22,7 +22,7 @@ init(_Options) ->
 -spec(react(From :: atom() | pid() | port() | {atom(),atom()}, {Reactants :: [{'simple',float()},...], State :: ok})
       -> ok).
 
-react(From, [{simple, X}]) when is_float(X) ->
+react(From, {[{simple, X}], S}) when is_float(X) ->
   Product = {simple_product, X * 2.0},
-  From ! {products, {[Product], ok}},
+  From ! {products, {[Product], S}},
   ok.
