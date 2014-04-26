@@ -1,66 +1,9 @@
 Words
 =====
 observer:start().
-brain:start().
-%% Setup Master
-{ok, {Words, M}} = word_generator:init([{filename, "./data/words.txt"}, {subsize, 10}]).
-WordList = word_generator:split_words(M, Words, []).
-N = length(WordList) * M.
-LetterCounts = [{list_to_atom([L]), 0} || L <- lists:seq(97,122)].
-Total = {total, 0}.
-
-%% Setup Worker
-Worker = fun () ->
-	receive
-		run ->
-			{words, List} = tuple_space_server:in({words, [{string, 10}]}),
-			LetterFold = fun (Word, Dict) ->
-				if hd(Word) > 64 andalso hd(Word) < 123 ->
-					LowerCaseWord = string:to_lower(Word),
-					Key = list_to_atom([hd(LowerCaseWord)]),
-					NewDict = dict:update(Key, fun (Old) -> Old + 1 end, 1, Dict);
-				true -> Dict
-				end
-			end,
-			InitialLetters = lists:foldl(LetterFold, dict:new(), List),
-			InitialLetterCounts = dict:to_list(InitialLetters),
-			UpdateLetterCount = fun ({Letter, Increment}) ->
-				{Letter, Count} = tuple_space_server:in({Letter, int}),
-				ok = tuple_space_server:out({Letter, Count + Increment})
-			end,
-			UpdatedCounts = lists:foreach(UpdateLetterCount, InitialLetterCounts),
-			{total, CurrentTotal} = tuple_space_server:in({total, int}),
-			ok = tuple_space_server:out({total, CurrentTotal + 10}),
-			self() ! run;
-		stop -> ok
-	end
-end.
-
-%% Seed the Brain
-ok = tuple_space_server:out(Total).
-
-AddToBrain = fun (E) -> ok = tuple_space_server:out(E) end.
-lists:foreach(AddToBrain, LetterCounts).
-
-%% Spawn Workers
-Workers = [spawn(Worker) || X <- lists:seq(1,5)].
-lists:foreach(fun(W) -> W ! run end, Workers).
-
-%% Wait for result and send it back
-Extractor = fun () ->
-	receive
-		{wait, From, N} ->
-			tuple_space_server:in({total, N}),
-			From ! done;
-		_ ->
-			io:format("WTF!~n")
-	end
-end.
-
-E = spawn(Extractor).
-%% Tell it to wait
-E ! {wait, self(), N}.
-
-%% Add word lists
-utilities:pforeach(AddToBrain, WordList).
-
+M = 1300.
+%%{N, WordList} = word_demo:master_init(M, "./data/words.txt").
+{N, WordList} = word_demo:master_init(M, "./data/800trunk.txt").
+word_demo:worker_run(M).
+word_demo:gatherer_run(N).
+word_demo:master_run(WordList).

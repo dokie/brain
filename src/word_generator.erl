@@ -52,10 +52,16 @@ process_each_line(IoDevice, WordList) ->
       file:close(IoDevice),
       throw(Reason);
     Data ->
-      NewWordList = WordList ++ words(Data),
+      Trimmed = string:strip(Data),
+      NewWordList = WordList ++ words(Trimmed),
       process_each_line(IoDevice, NewWordList)
   end.
 
 words(String) ->
-  {match, Captures} = re:run(String, "\\b\\w+\\b", [global,{capture,first,list}]),
-  [hd(C) || C <- Captures].
+  case length(String) of
+    0 -> [];
+    1 -> [];
+    _ ->
+      {match, Captures} = re:run(String, "\\b\\w+\\b", [global,{capture,first,list}]),
+      [hd(C) || C <- Captures]
+  end.

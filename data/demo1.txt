@@ -20,4 +20,4 @@ HelloWorld = fun(I) ->
     end.
 tuple_space_server:out({count, 0}).
 Generator = fun(I) -> tuple_space_server:eval({worker, HelloWorld(I)}) end.
-utilities:pmap(Generator, lists:seq(1,10)).
+utilities:pmap(Generator, lists:seq(1,100)).

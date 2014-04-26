@@ -23,11 +23,11 @@ react(From, {[{words, WordList}], M}) when is_list(WordList), length(WordList) =
     if hd(Word) > 64 andalso hd(Word) < 123 ->
       LowerCaseWord = string:to_lower(Word),
       Key = list_to_atom([hd(LowerCaseWord)]),
-      NewDict = dict:update(Key, fun (Old) -> Old + 1 end, 1, Dict);
+      _NewDict = dict:update(Key, fun (Old) -> Old + 1 end, 1, Dict);
       true -> Dict
     end
   end,
-  InitialLetters = lists:foldl(LetterFold, dict:new(), List),
+  InitialLetters = lists:foldl(LetterFold, dict:new(), WordList),
   InitialLetterCounts = dict:to_list(InitialLetters),
   UpdateLetterCount = fun ({Letter, Increment}) ->
     {Letter, Count} = tuple_space_server:in({Letter, int}),
