@@ -62,6 +62,8 @@ words(String) ->
     0 -> [];
     1 -> [];
     _ ->
-      {match, Captures} = re:run(String, "\\b\\w+\\b", [global,{capture,first,list}]),
-      [hd(C) || C <- Captures]
+      case re:run(String, "\\b\\w+\\b", [global,{capture,first,list}]) of
+        {match, Captures} -> [hd(C) || C <- Captures];
+        nomatch -> []
+      end
   end.
