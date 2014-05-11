@@ -41,7 +41,7 @@ worker(M, Identity) ->
   receive
     run ->
       {words, List} = tuple_space_server:in({words, [{string, M}]}),
-      io:format("Worker #~p is working.~n", [Identity]),
+      io:format("~p.", [Identity]),
       LetterFold = fun (Word, Dict) ->
         LowerCaseWord = string:to_lower(Word),
         if hd(LowerCaseWord) > 96 andalso hd(LowerCaseWord) < 123 ->
@@ -50,28 +50,25 @@ worker(M, Identity) ->
           true -> Dict
         end
       end,
-      io:format("Worker #~p is updating letter count.~n", [Identity]),
       {_, #counts{dict = CurrentCounts}} = tuple_space_server:in({counts, {record, counts}}),
       UpdatedCounts = lists:foldl(LetterFold, CurrentCounts, List),
       Counts = #counts{dict = UpdatedCounts},
       ok = tuple_space_server:out({counts, Counts}),
-      io:format("Worker #~p is updating total count.~n", [Identity]),
       {total, CurrentTotal} = tuple_space_server:in({total, int}),
       ok = tuple_space_server:out({total, CurrentTotal + M}),
-      io:format("Worker #~p is re-spawning.~n", [Identity]),
       Worker = spawn(word_demo, worker, [M, Identity]),
       Worker ! run;
       stop -> ok
   end.
 
 worker_run(M, NumWorker) ->
-  Workers = [spawn(word_demo, worker, [M, X]) || X <- lists:seq(1,NumWorker)],
+  Workers = [spawn(word_demo, worker, [M, X]) || X <- lists:seq(1, NumWorker)],
   lists:foreach(fun(W) -> W ! run end, Workers).
 
 gather() ->
   receive
     {run, From, N} ->
-      tuple_space_server:in({total, N}),
+      tuple_space_server:in({total, fun(I) -> I >= N end}),
       {counts, #counts{dict = CountDict}} = tuple_space_server:in({counts, {record, counts}}),
       ResetCountDict = dict:map(fun(_K,_V) -> 0 end, CountDict),
       tuple_space_server:out({counts, #counts{dict = ResetCountDict}}),
@@ -79,7 +76,7 @@ gather() ->
       Start = tuple_space_server:in({int, int, int}),
       End = now(),
       DiffMS = timer:now_diff(End, Start) / 1000,
-      io:format("The operation took: ~p milliseconds~n", [DiffMS]),
+      io:format("~nThe operation took: ~p milliseconds~n", [DiffMS]),
       Results = dict:to_list(CountDict),
       PrintResult = fun ({Letter, Count}) ->
         io:format("~p : ~w~n", [Letter, Count])

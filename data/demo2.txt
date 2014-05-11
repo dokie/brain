@@ -1,9 +1,0 @@
-Words
-=====
-observer:start().
-M = 50.
-NW = 10.
-{N, WordList} = word_demo:master_init(M, "./data/anarchy.txt").
-word_demo:worker_run(M, NW).
-word_demo:gatherer_run(N).
-word_demo:master_run(WordList).

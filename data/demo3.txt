@@ -1,0 +1,9 @@
+Words
+=====
+observer:start().
+M = 10000.
+NW = 4.
+{N, WordList} = word_demo:master_init(M, "./data/crimefighter.txt").
+word_demo:worker_run(M, NW).
+word_demo:gatherer_run(N).
+word_demo:master_run(WordList).
