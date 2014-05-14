@@ -13,8 +13,8 @@
 -export([out/1, out/3, in/2, inp/2, rd/2, rdp/2, eval/1, count/2, expired/2]).
 
 %% Definitions
--define(WAIT_MIN, 40).
--define(WAIT_MAX, 60).
+-define(WAIT_MIN, 4).
+-define(WAIT_MAX, 6).
 
 -define(RESERVED_SLOT_COUNT, 2).
 
