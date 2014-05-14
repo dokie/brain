@@ -25,6 +25,10 @@
 
 -define(SERVER, ?MODULE).
 
+-define(ID_POSITION, 1).
+-define(DIRTY_FLAG_POSITION, ?ID_POSITION + 1).
+-define(TUPLE_POSITION, ?DIRTY_FLAG_POSITION + 1).
+
 -record(tuplespace, {tuples, tuple_requests}).
 
 %%%===================================================================
@@ -264,6 +268,15 @@ handle_cast(_Request, State) ->
   {stop, Reason :: term(), NewState :: #tuplespace{}}).
 
 %% --------------- QUERYING ------------------------------------
+handle_info({Worker, Ref, find_one, Spec}, State) ->
+  Selections =
+    case ets:select(tuples, Spec, 1) of
+      '$end_of_table' -> [];
+      {[Match], _Continuation} -> [Match]
+    end,
+  Worker ! {selected, Ref, Selections},
+  {noreply, State};
+
 handle_info({Worker, Ref, query, Spec}, State) ->
   Selections = ets:select(tuples, Spec),
   Worker ! {selected, Ref, Selections},
@@ -273,26 +286,30 @@ handle_info({Worker, Ref, query, Spec}, State) ->
 handle_info({Worker, done, in, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   Stripped = strip(Tuple),
-  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  ets:delete(tuples, element(?ID_POSITION, Tuple)), %% Remove from Tuplespace
   reply_to_request(Request, Stripped),
   cleanup_request(Worker),
+  Worker ! {finished, self()},
   {noreply, State};
 
 handle_info({Worker, done, inp, null}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   reply_to_request(Request, null),
+  Worker ! {finished, self()},
   {noreply, State};
 
 handle_info({Worker, done, inp, Tuple}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   Stripped = strip(Tuple),
-  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  ets:delete(tuples, element(?ID_POSITION, Tuple)), %% Remove from Tuplespace
   reply_to_request(Request, Stripped),
+  Worker ! {finished, self()},
   {noreply, State};
 
 handle_info({Worker, done, count, Count}, State) ->
   Request = ets:lookup(tuple_requests, Worker),
   reply_to_request(Request, Count),
+  Worker ! {finished, self()},
   {noreply, State};
 
 handle_info({Worker, done, _Mode, Tuple}, State) ->
@@ -304,18 +321,20 @@ handle_info({Worker, done, _Mode, Tuple}, State) ->
       Tuple
   end,
   reply_to_request(Request, Result),
+  Worker ! {finished, self()},
   {noreply, State};
 
-handle_info({dirty, Key}, State) ->
-  ets:update_element(tuples, Key, {2, true}),
+handle_info({Worker, dirty, Key}, State) ->
+  ets:update_element(tuples, Key, {?DIRTY_FLAG_POSITION, true}),
+  Worker ! {dirtied, self()},
   {noreply, State};
 
-handle_info({clean, Key}, State) ->
-  ets:update_element(tuples, Key, {2, false}),
+handle_info({_Worker, clean, Key}, State) ->
+  ets:update_element(tuples, Key, {?DIRTY_FLAG_POSITION, false}),
   {noreply, State};
 
 handle_info({expired, Tuple}, State) ->
-  ets:delete(tuples, element(1, Tuple)), %% Remove from Tuplespace
+  ets:delete(tuples, element(?ID_POSITION, Tuple)), %% Remove from Tuplespace
   {noreply, State};
 
 handle_info({'EXIT', _Pid, normal}, State) ->
@@ -328,7 +347,7 @@ handle_info({'EXIT', Pid, _}, State) ->
 
 strip(Tuple) ->
   TupleAsList = tuple_to_list(Tuple),
-  list_to_tuple(lists:sublist(TupleAsList, 3, length(TupleAsList))).
+  list_to_tuple(lists:sublist(TupleAsList, ?TUPLE_POSITION, length(TupleAsList))).
 
 reply_to_request([], _Reply) ->
   ok;

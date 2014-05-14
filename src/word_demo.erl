@@ -38,27 +38,29 @@ master_run(WordList) ->
   utilities:pforeach(AddToBrain, WordList).
 
 worker(M, Identity) ->
+  LetterFold = fun (Word, Dict) ->
+    LowerCaseWord = string:to_lower(Word),
+    if hd(LowerCaseWord) > 96 andalso hd(LowerCaseWord) < 123 ->
+      Key = list_to_atom([hd(LowerCaseWord)]),
+      dict:update_counter(Key, 1, Dict);
+      true -> Dict
+    end
+  end,
+
   receive
     run ->
-      {words, List} = tuple_space_server:in({words, [{string, M}]}),
-      io:format("~p.", [Identity]),
-      LetterFold = fun (Word, Dict) ->
-        LowerCaseWord = string:to_lower(Word),
-        if hd(LowerCaseWord) > 96 andalso hd(LowerCaseWord) < 123 ->
-          Key = list_to_atom([hd(LowerCaseWord)]),
-          _NewDict = dict:update_counter(Key, 1, Dict);
-          true -> Dict
-        end
-      end,
-      {_, #counts{dict = CurrentCounts}} = tuple_space_server:in({counts, {record, counts}}),
-      UpdatedCounts = lists:foldl(LetterFold, CurrentCounts, List),
-      Counts = #counts{dict = UpdatedCounts},
-      ok = tuple_space_server:out({counts, Counts}),
-      {total, CurrentTotal} = tuple_space_server:in({total, int}),
-      ok = tuple_space_server:out({total, CurrentTotal + M}),
-      Worker = spawn(word_demo, worker, [M, Identity]),
-      Worker ! run;
-      stop -> ok
+        {words, List} = tuple_space_server:in({words, [{string, M}]}),
+        io:format("[~pS]", [Identity]),
+        {_, #counts{dict = CurrentCounts}} = tuple_space_server:in({counts, {record, counts}}),
+        UpdatedCounts = lists:foldl(LetterFold, CurrentCounts, List),
+        Counts = #counts{dict = UpdatedCounts},
+        ok = tuple_space_server:out({counts, Counts}),
+        {total, CurrentTotal} = tuple_space_server:in({total, int}),
+        ok = tuple_space_server:out({total, CurrentTotal + M}),
+        io:format("[~pE]", [Identity]),
+        Worker = spawn(word_demo, worker, [M, Identity]),
+        Worker ! run;
+        stop -> ok
   end.
 
 worker_run(M, NumWorker) ->
@@ -76,11 +78,12 @@ gather() ->
       Start = tuple_space_server:in({int, int, int}),
       End = now(),
       DiffMS = timer:now_diff(End, Start) / 1000,
-      io:format("~nThe operation took: ~p milliseconds~n", [DiffMS]),
       Results = dict:to_list(CountDict),
       PrintResult = fun ({Letter, Count}) ->
         io:format("~p : ~w~n", [Letter, Count])
       end,
+      timer:sleep(1000),
+      io:format("~nThe operation took: ~p milliseconds~n", [DiffMS]),
       lists:foreach(PrintResult, Results),
       From ! done,
       G = spawn(word_demo, gather, []),

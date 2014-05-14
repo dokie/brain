@@ -220,7 +220,8 @@ exact_rdp(_Pid) ->
   Tuple = {"Good Bye", ok, <<"BS">>, 1.23},
   ok = ?SERVER:out(Tuple),
   Match = ?SERVER:rdp(Tuple),
-  [?_assertEqual(Tuple, Match)].
+  Second = ?SERVER:rdp(Tuple),
+  [?_assertEqual(Tuple, Match), ?_assertEqual(Tuple, Second)].
 
 match_second_atom_rdp(_Pid) ->
   Tuple = {"Ciao", pizza, 3.14},

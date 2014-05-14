@@ -16,6 +16,8 @@
 -define(WAIT_MIN, 40).
 -define(WAIT_MAX, 60).
 
+-define(RESERVED_SLOT_COUNT, 2).
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Add a Tuple into the Tuplespace
@@ -55,14 +57,11 @@ out(Tuple, Ttl, Caller) ->
 expired(Tuple, Server) when is_tuple(Tuple) ->
   Ref = make_ref(),
   Id = {{expired, Tuple}, Ref},
-  case lock(Id) of
-    true ->
-      Server ! {expired, Tuple},
-      unlock(Id);
-
-    false ->
-      nolock
-  end.
+  OnLocked = fun (S, {{expired, T}, _R} = I) ->
+    S ! {expired, T},
+    unlock(I)
+  end,
+  lock_then_work(Server, Id, OnLocked).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -160,40 +159,42 @@ eval(Specification) when is_tuple(Specification) ->
 %% @spec count(Template) -> Count
 %% @end
 %%--------------------------------------------------------------------
--spec count(Template :: tuple(), Caller :: pid() | port() | {atom(), atom()}) -> nolock | true.
+-spec count(Template :: tuple(), Server :: pid() | port() | {atom(), atom()}) -> nolock | true.
 
-count(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+count(Template, Server) when is_tuple(Template), is_pid(Server) ->
   MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
   Id = {{count, TemplateList, MatchHead, Guard}, Ref},
-  case lock(Id) of
-    true ->
-      Matches = execute_query(Caller, MatchHead, Guard, Ref, [any, false] ++ TemplateList),
-      Caller ! {self(), done, count, length(Matches)},
-      unlock(Id);
-    false ->
-      nolock
-  end.
+  OnLocked = fun (S, {{_M, TL, MH, G}, R} = I) ->
+    Matches = query_all(S, MH, G, R, [any, false] ++ TL),
+    S ! {self(), done, count, length(Matches)},
+    unlock(I)
+  end,
+  lock_then_work(Server, Id, OnLocked).
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
 selector(Mode, TemplateList, MatchHead, Guard, Server, Ref) ->
   Id = {{Mode, TemplateList, MatchHead, Guard}, Ref},
   OnLocked = fun (S, {{M, TL, MH, G}, R} = I) ->
-    case (execute_query(S, MH, G, R, TL)) of
+    case (query_one(S, MH, G, R, TL)) of
       [] ->
         unlock(I),
         random_wait(),
         selector(M, TL, MH, G, S, R);
       [H | _] ->
         Key = lists:nth(1, H),
-        S ! {dirty, Key},
-        unlock(I),
-        S ! {clean, Key},
-        S ! {self(), done, M, list_to_tuple(H)},
-        done
+        S ! {self(), dirty, Key},
+        receive
+          {dirtied, S} ->
+            unlock(I),
+            S ! {self(), done, M, list_to_tuple(H)},
+            S ! {self(), clean, Key};
+
+          {finished, S} -> done
+        end
     end
   end,
   lock_then_work(Server, Id, OnLocked).
@@ -203,10 +204,10 @@ random_wait() ->
   timer:sleep(WaitPeriod).
 
 make_matchhead(Template) ->
-  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + 2)]),
+  MatchHead = list_to_tuple([list_to_atom("$" ++ integer_to_list(I)) || I <- lists:seq(1, size(Template) + ?RESERVED_SLOT_COUNT)]),
   MatchHead.
 
-find_all_selections(Server, MatchHead, Guard, Ref) ->
+find_all(Server, MatchHead, Guard, Ref) ->
   MatchSpec = [{MatchHead, Guard, ['$$']}],
   Server ! {self(), Ref, query, MatchSpec},
   receive
@@ -214,8 +215,16 @@ find_all_selections(Server, MatchHead, Guard, Ref) ->
       Selections
   end.
 
+find_one(Server, MatchHead, Guard, Ref) ->
+  MatchSpec = [{MatchHead, Guard, ['$$']}],
+  Server ! {self(), Ref, find_one, MatchSpec},
+  receive
+    {selected, Ref, Selection} ->
+      Selection
+  end.
+
 make_guard(TemplateList) ->
-  Mapper = fun(E, I) -> guard(E, I + 2) end,
+  Mapper = fun(E, I) -> guard(E, I + ?RESERVED_SLOT_COUNT) end,
   BareGuard = utilities:each_with_index(Mapper, TemplateList),
   Stripper = fun(Elem) -> Elem /= {} end,
   lists:filter(Stripper, BareGuard).
@@ -328,25 +337,35 @@ match(TemplateFuns = [TH | TT], TupleList = [H | T], Acc) ->
 locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateList), is_pid(Server) ->
   Id = {{Mode, TemplateList, MatchHead, Guard}, Ref},
   OnLocked = fun (S, {{M, TL, MH, G}, R} = I) ->
-    Matches = execute_query(S, MH, G, R, TL),
-    case Matches of
+    case query_one(S, MH, G, R, TL) of
       [] ->
         unlock(I),
-        S ! {self(), done, M, null};
+        S ! {self(), done, M, null},
+        receive
+          {finished, S} -> done
+        end;
 
       [H | _] ->
         Key = lists:nth(1, H),
-        S ! {dirty, Key},
-        unlock(I),
-        S ! {clean, Key},
-        S ! {self(), done, M, list_to_tuple(H)}
+        S ! {self(), dirty, Key},
+        receive
+          {dirtied, S} ->
+            unlock(I),
+            S ! {self(), done, M, list_to_tuple(H)},
+            S ! {self(), clean, Key}
+end
     end
   end,
   lock_then_work(Server, Id, OnLocked).
 
+query_all(Server, MatchHead, Guard, Ref, TemplateList) ->
+  Selections = find_all(Server, MatchHead, Guard, Ref),
+  TemplateFuns = funky(TemplateList),
+  Matches = find_all_matches(TemplateFuns, Selections),
+  Matches.
 
-execute_query(Server, MatchHead, Guard, Ref, TemplateList) ->
-  Selections = find_all_selections(Server, MatchHead, Guard, Ref),
+query_one(Server, MatchHead, Guard, Ref, TemplateList) ->
+  Selections = find_one(Server, MatchHead, Guard, Ref),
   TemplateFuns = funky(TemplateList),
   Matches = find_all_matches(TemplateFuns, Selections),
   Matches.
@@ -357,7 +376,6 @@ lock_then_work(Server, Id, OnLocked) when is_function(OnLocked, 2) ->
       OnLocked(Server, Id);
 
     false ->
-      random_wait(),
       lock_then_work(Server, Id, OnLocked)
   end.
 
