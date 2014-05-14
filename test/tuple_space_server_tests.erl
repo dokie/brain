@@ -334,7 +334,7 @@ varied_queries_inp(_Pid) ->
     case Other of
       "Fuel" -> ?SERVER:inp({varied, string});
       fuel -> ?SERVER:inp({varied, atom});
-      I when is_integer(I) and I > 1 -> ?SERVER:inp({varied, fun (I) -> I > 1 end});
+      I when is_integer(I) and I > 1 -> ?SERVER:inp({varied, fun (E) -> E > 1 end});
       I when is_integer(I) -> ?SERVER:inp({varied, integer});
       F when is_float(F) -> ?SERVER:inp({varied, float});
       true -> ?SERVER:inp({varied, any})
