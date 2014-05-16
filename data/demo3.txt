@@ -1,8 +1,8 @@
 Words
 =====
 observer:start().
-M = 120000.
-NW = 1.
+M = 5000.
+NW = 8.
 {N, WordList} = word_demo:master_init(M, "./data/crimefighter.txt").
 word_demo:worker_run(M, NW).
 word_demo:gatherer_run(N).
@@ -12,4 +12,5 @@ word_demo:master_run(WordList).
 eprof:start_profiling(processes() -- [P]).
 word_demo:master_run(WordList).
 eprof:stop_profiling().
-eprof:analyse(total).
+eprof:log("data/eprof.txt").
+eprof:analyze(total).

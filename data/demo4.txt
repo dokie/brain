@@ -1,2 +1,16 @@
-Job Running
-===========
+Words
+=====
+observer:start().
+M = 5000.
+NW = 8.
+{N, WordList} = word_demo2:master_init(M, "./data/crimefighter.txt").
+word_demo2:worker_run(M, NW).
+word_demo2:gatherer_run(N).
+word_demo2:master_run(WordList, NW).
+
+{ok, P} = eprof:start().
+eprof:start_profiling(processes() -- [P]).
+word_demo2:master_run(WordList, NW).
+eprof:stop_profiling().
+eprof:log("data/eprof.txt").
+eprof:analyze(total).

@@ -16,4 +16,5 @@
                         rabbitmq_generator,reactor,reactor_server,reactor_sup,
                         simple_extractor,simple_factory,simple_generator,
                         simple_reactor,tuple_space,tuple_space_server,
-                        utilities,word_demo,word_generator,word_reactor]}]}.
+                        utilities,word_demo,word_demo2,word_generator,
+                        word_reactor]}]}.
