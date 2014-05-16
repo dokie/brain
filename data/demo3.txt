@@ -2,7 +2,7 @@ Words
 =====
 observer:start().
 M = 5000.
-NW = 8.
+NW = 4.
 {N, WordList} = word_demo:master_init(M, "./data/crimefighter.txt").
 word_demo:worker_run(M, NW).
 word_demo:gatherer_run(N).

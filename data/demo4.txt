@@ -1,11 +1,11 @@
 Words
 =====
 observer:start().
-M = 5000.
+M = 15000.
 NW = 8.
-{N, WordList} = word_demo2:master_init(M, "./data/crimefighter.txt").
+{N, WordList} = word_demo2:master_init(M, "./data/crimefighter.txt", NW).
 word_demo2:worker_run(M, NW).
-word_demo2:gatherer_run(N).
+word_demo2:gatherer_run(N, NW).
 word_demo2:master_run(WordList, NW).
 
 {ok, P} = eprof:start().
