@@ -8,6 +8,7 @@ Worker = fun () ->
     end.
 spawn(Worker).
 tuple_space_server:out({counter, 5}).
+tuple_space_server:rd({counter, fun (X) -> X < 10 end}).
 tuple_space_server:in({counter, int}).
 
 Hello World

@@ -1,0 +1,10 @@
+=== Advanced ====
+brain:start().
+T = {find_me, "if", you, "can"}.
+tuple_space_server:out(T, 10000).
+tuple_space_server:rdp({any, string, you, string}).
+tuple_space_server:count({any, string, you, string}).
+%% WAIT
+tuple_space_server:inp({any, string, you, string}).
+
+

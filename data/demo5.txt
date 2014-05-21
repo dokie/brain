@@ -1,0 +1,16 @@
+=== Job Running ===
+observer:start().
+brain:start().
+Size = 1000,
+Batch = 50,
+JobPartsList = [
+    { factories, [{f, mergesort_factory, [Size], 1}]},
+    { generators, []},
+    { reactors, [{splitter, mergesort_splitter, [Size, Batch], 1},
+        {sorter, mergesort_sorter, [Batch], 5},
+        {merger, mergesort_merger, [Size, Batch], 1}]},
+    { extractors, [{e, mergesort_extractor, [Size], 1}]}],
+Job = dict:from_list(JobPartsList).
+brain:specify_job(demo5,  Job).
+brain:run_job(demo5).
+brain:complete_job(demo5).
