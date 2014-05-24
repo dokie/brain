@@ -49,7 +49,7 @@ worker(M, Identity) ->
 
   receive
     run ->
-        {words, List, Index} = tuple_space_server:in({words, [{string, M}], Identity - 1 }),
+        {words, List, Index} = tuple_space_server:in({words, [{string, M}], Identity - 1 }, no_check),
         io:format("[~pS:~pI]", [Identity, Index + 1]),
         {counts, #counts{dict = CurrentCounts}, Identity} = tuple_space_server:in({counts, {record, counts}, Identity}),
         UpdatedCounts = lists:foldl(LetterFold, CurrentCounts, List),
