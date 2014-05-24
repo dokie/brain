@@ -357,3 +357,43 @@ ttl_correct(_Pid) ->
   Missing = ?SERVER:rdp(Template),
   [?_assertEqual(Tuple, There),
    ?_assertEqual(null, Missing)].
+
+tuple_space_list_optional_test_() ->
+  [{"Test of optional in",
+     ?setup(fun optional_in/1)},
+   {"Test of optional inp",
+     ?setup(fun optional_inp/1)},
+   {"Test of optional rd",
+     ?setup(fun optional_rd/1)},
+   {"Test of optional rdp",
+     ?setup(fun optional_rdp/1)}
+  ].
+
+optional_in(_Pid) ->
+  Tuple = {optional, lists:seq(1,1000)},
+  ok = ?SERVER:out(Tuple),
+  Template = {optional, [{int, 1000}]},
+  Found = ?SERVER:in(Template, no_check),
+  [?_assertEqual(Tuple, Found)].
+
+optional_inp(_Pid) ->
+  Tuple = {optional, lists:seq(1,1000)},
+  ok = ?SERVER:out(Tuple),
+  Template = {optional, [{int, 1000}]},
+  Found = ?SERVER:inp(Template, no_check),
+  [?_assertEqual(Tuple, Found)].
+
+optional_rd(_Pid) ->
+  Tuple = {optional, lists:seq(1,1000)},
+  ok = ?SERVER:out(Tuple),
+  Template = {optional, [{int, 1000}]},
+  Found = ?SERVER:rd(Template, no_check),
+  [?_assertEqual(Tuple, Found)].
+
+optional_rdp(_Pid) ->
+  Tuple = {optional, lists:seq(1,1000)},
+  ok = ?SERVER:out(Tuple),
+  Template = {optional, [{int, 1000}]},
+  Found = ?SERVER:rdp(Template, no_check),
+  [?_assertEqual(Tuple, Found)].
+

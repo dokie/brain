@@ -10,7 +10,7 @@
 -author("mike").
 
 %% API
--export([out/1, out/3, in/2, inp/2, rd/2, rdp/2, eval/1, count/2, expired/2]).
+-export([out/1, out/3, in/3, inp/3, rd/3, rdp/3, eval/1, count/2, expired/2]).
 
 %% Definitions
 -define(WAIT_MIN, 4).
@@ -57,11 +57,11 @@ out(Tuple, Ttl, Caller) ->
 expired(Tuple, Server) when is_tuple(Tuple) ->
   Ref = make_ref(),
   Id = {{expired, Tuple}, Ref},
-  OnLocked = fun (S, {{expired, T}, _R} = I) ->
+  OnLocked = fun (S, {{expired, T}, _R} = I, _C) ->
     S ! {expired, T},
     unlock(I)
   end,
-  lock_then_work(Server, Id, OnLocked).
+  lock_then_work(Server, Id, OnLocked, check).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -71,14 +71,14 @@ expired(Tuple, Server) when is_tuple(Tuple) ->
 %% @spec in(Template, Caller) -> done.
 %% @end
 %%--------------------------------------------------------------------
--spec in(Template :: tuple(), Caller :: pid()) -> done.
+-spec in(Template :: tuple(), Caller :: pid(), Check :: atom()) -> done.
 
-in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+in(Template, Caller, Check) when is_tuple(Template), is_pid(Caller), is_atom(Check) ->
   MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  selector(in, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  selector(in, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref, Check).
 
 
 %%--------------------------------------------------------------------
@@ -89,14 +89,14 @@ in(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 %% @spec inp(Template) -> {ok, Tuple} | {ok, null}
 %% @end
 %%--------------------------------------------------------------------
--spec inp(Template :: tuple(), Caller :: pid()) -> nolock | true.
+-spec inp(Template :: tuple(), Caller :: pid(), Check :: atom()) -> nolock | true.
 
-inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+inp(Template, Caller, Check) when is_tuple(Template), is_pid(Caller), is_atom(Check) ->
   MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
-  locate(inp, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  locate(inp, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref, Check).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -107,14 +107,14 @@ inp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 %% @spec rd(Template, Caller) -> done.
 %% @end
 %%--------------------------------------------------------------------
--spec rd(Template :: tuple(), Caller :: pid()) -> done.
+-spec rd(Template :: tuple(), Caller :: pid(), Check :: atom()) -> done.
 
-rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+rd(Template, Caller, Check) when is_tuple(Template), is_pid(Caller), is_atom(Check) ->
   Ref = make_ref(),
   MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList),
-  selector(rd, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  selector(rd, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref, Check).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -124,13 +124,13 @@ rd(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
 %% @spec rdp(Template) -> {ok, Tuple} | {ok, null}
 %% @end
 %%--------------------------------------------------------------------
--spec rdp(Template :: term(), Caller :: pid()) -> nolock | true.
+-spec rdp(Template :: term(), Caller :: pid(), Check :: atom()) -> nolock | true.
 
-rdp(Template, Caller) when is_tuple(Template), is_pid(Caller) ->
+rdp(Template, Caller, Check) when is_tuple(Template), is_pid(Caller), is_atom(Check) ->
   MatchHead = make_matchhead(Template),
   TemplateList = tuple_to_list(Template),
   Guard = make_guard(TemplateList), Ref = make_ref(),
-  locate(rdp, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref).
+  locate(rdp, [any, false] ++ TemplateList, MatchHead, Guard, Caller, Ref, Check).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -167,23 +167,23 @@ count(Template, Server) when is_tuple(Template), is_pid(Server) ->
   Guard = make_guard(TemplateList),
   Ref = make_ref(),
   Id = {{count, TemplateList, MatchHead, Guard}, Ref},
-  OnLocked = fun (S, {{_M, TL, MH, G}, R} = I) ->
-    Matches = query_all(S, MH, G, R, [any, false] ++ TL),
+  OnLocked = fun (S, {{_M, TL, MH, G}, R} = I, C) ->
+    Matches = query_all(S, MH, G, R, [any, false] ++ TL, C),
     S ! {self(), done, count, length(Matches)},
     unlock(I)
   end,
-  lock_then_work(Server, Id, OnLocked).
+  lock_then_work(Server, Id, OnLocked, no_check).
 
 %% =========== INTERNAL PRIVATE FUNCTIONS ==============================
 
-selector(Mode, TemplateList, MatchHead, Guard, Server, Ref) ->
+selector(Mode, TemplateList, MatchHead, Guard, Server, Ref, Check) ->
   Id = {{Mode, TemplateList, MatchHead, Guard}, Ref},
-  OnLocked = fun (S, {{M, TL, MH, G}, R} = I) ->
-    case (query_one(S, MH, G, R, TL)) of
+  OnLocked = fun (S, {{M, TL, MH, G}, R} = I, C) ->
+    case (query_one(S, MH, G, R, TL, C)) of
       [] ->
         unlock(I),
         random_wait(),
-        selector(M, TL, MH, G, S, R);
+        selector(M, TL, MH, G, S, R, C);
       [H | _] ->
         Key = lists:nth(1, H),
         S ! {self(), dirty, Key},
@@ -197,7 +197,7 @@ selector(Mode, TemplateList, MatchHead, Guard, Server, Ref) ->
         end
     end
   end,
-  lock_then_work(Server, Id, OnLocked).
+  lock_then_work(Server, Id, OnLocked, Check).
 
 random_wait() ->
   WaitPeriod = random:uniform(?WAIT_MAX - ?WAIT_MIN) + ?WAIT_MIN - 1,
@@ -271,55 +271,88 @@ find_all_matches(FunsList, TupleList) when is_list(FunsList), is_list(TupleList)
   Matches = lists:takewhile(Bail, TupleList),
   Matches.
 
-mapper(Elem) when is_function(Elem, 1) -> Elem;
-mapper(Elem) when integer =:= Elem -> fun(I) -> is_integer(I) end;
-mapper(Elem) when int =:= Elem -> fun(I) -> is_integer(I) end;
-mapper(Elem) when string =:= Elem -> fun(S) -> io_lib:printable_list(S) end;
-mapper(Elem) when float =:= Elem -> fun(F) -> is_float(F) end;
-mapper(Elem) when binary =:= Elem -> fun(B) -> is_binary(B) end;
-mapper(Elem) when atom =:= Elem -> fun(A) -> is_atom(A) end;
-mapper(Elem) when any =:= Elem -> fun(_A) -> true end;
+mapper(Elem, _Check) when is_function(Elem, 1) -> Elem;
+mapper(Elem, _Check) when integer =:= Elem -> fun(I) -> is_integer(I) end;
+mapper(Elem, _Check) when int =:= Elem -> fun(I) -> is_integer(I) end;
+mapper(Elem, _Check) when string =:= Elem -> fun(S) -> io_lib:printable_list(S) end;
+mapper(Elem, _Check) when float =:= Elem -> fun(F) -> is_float(F) end;
+mapper(Elem, _Check) when binary =:= Elem -> fun(B) -> is_binary(B) end;
+mapper(Elem, _Check) when atom =:= Elem -> fun(A) -> is_atom(A) end;
+mapper(Elem, _Check) when any =:= Elem -> fun(_A) -> true end;
 
-mapper([{integer, N}]) ->
+
+mapper([{integer, N}], no_check) ->
+  fun(L) ->
+    is_list(L) andalso N =:= length(L)
+  end;
+
+mapper([{float, N}], no_check) ->
+  fun(L) ->
+    is_list(L) andalso N =:= length(L)
+  end;
+
+mapper([{string, N}], no_check) ->
+  fun(L) ->
+    is_list(L) andalso N =:= length(L)
+  end;
+
+mapper([{binary, N}], no_check) ->
+  fun(L) ->
+    is_list(L) andalso N =:= length(L)
+  end;
+
+mapper([{atom, N}], no_check) ->
+  fun(L) ->
+    is_list(L) andalso N =:= length(L)
+  end;
+
+mapper([{integer, N}], _Check) ->
   fun(L) ->
     Pred = fun(E) -> is_integer(E) end,
     is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
   end;
-mapper([{int, N}]) ->
+
+mapper([{int, N}], _Check) ->
   fun(L) ->
     Pred = fun(E) -> is_integer(E) end,
     is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
   end;
-mapper([{float, N}]) ->
+
+mapper([{float, N}], _Check) ->
   fun(L) ->
     Pred = fun(E) -> is_float(E) end,
     is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
   end;
-mapper([{string, N}]) ->
+
+mapper([{string, N}], _Check) ->
   fun(L) ->
     Pred = fun(E) -> io_lib:printable_list(E) end,
     is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
   end;
-mapper([{binary, N}]) ->
+
+mapper([{binary, N}], _Check) ->
   fun(L) ->
     Pred = fun(E) -> is_binary(E) end,
     is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
   end;
-mapper([{atom, N}]) ->
+
+mapper([{atom, N}], _Check) ->
   fun(L) ->
     Pred = fun(E) -> is_atom(E) end,
     is_list(L) andalso (N =:= length(L) andalso lists:all(Pred, L))
   end;
-mapper([{any, N}]) ->
+
+mapper([{any, N}], _Check) ->
   fun(L) ->
     is_list(L) andalso N =:= length(L)
   end;
-mapper({record, Name}) -> fun(R) -> is_record(R, Name) end;
 
-mapper(Elem) -> fun(S) -> S =:= Elem end.
+mapper({record, Name}, _Check) -> fun(R) -> is_record(R, Name) end;
 
-funky(TemplateList) ->
-  Mapper = fun(E) -> mapper(E) end,
+mapper(Elem, _Check) -> fun(S) -> S =:= Elem end.
+
+funky(TemplateList, Check) ->
+  Mapper = fun(E) -> mapper(E, Check) end,
   lists:map(Mapper, TemplateList).
 
 match([], [], Acc) ->
@@ -334,10 +367,10 @@ match(TemplateFuns = [TH | TT], TupleList = [H | T], Acc) ->
       Acc and false
   end.
 
-locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateList), is_pid(Server) ->
+locate(Mode, TemplateList, MatchHead, Guard, Server, Ref, Check) when is_list(TemplateList), is_pid(Server), is_atom(Check) ->
   Id = {{Mode, TemplateList, MatchHead, Guard}, Ref},
-  OnLocked = fun (S, {{M, TL, MH, G}, R} = I) ->
-    case query_one(S, MH, G, R, TL) of
+  OnLocked = fun (S, {{M, TL, MH, G}, R} = I, C) ->
+    case query_one(S, MH, G, R, TL, C) of
       [] ->
         unlock(I),
         S ! {self(), done, M, null},
@@ -356,27 +389,27 @@ locate(Mode, TemplateList, MatchHead, Guard, Server, Ref) when is_list(TemplateL
 end
     end
   end,
-  lock_then_work(Server, Id, OnLocked).
+  lock_then_work(Server, Id, OnLocked, Check).
 
-query_all(Server, MatchHead, Guard, Ref, TemplateList) ->
+query_all(Server, MatchHead, Guard, Ref, TemplateList, Check) ->
   Selections = find_all(Server, MatchHead, Guard, Ref),
-  TemplateFuns = funky(TemplateList),
+  TemplateFuns = funky(TemplateList, Check),
   Matches = find_all_matches(TemplateFuns, Selections),
   Matches.
 
-query_one(Server, MatchHead, Guard, Ref, TemplateList) ->
+query_one(Server, MatchHead, Guard, Ref, TemplateList, Check) ->
   Selections = find_one(Server, MatchHead, Guard, Ref),
-  TemplateFuns = funky(TemplateList),
+  TemplateFuns = funky(TemplateList, Check),
   Matches = find_all_matches(TemplateFuns, Selections),
   Matches.
 
-lock_then_work(Server, Id, OnLocked) when is_function(OnLocked, 2) ->
+lock_then_work(Server, Id, OnLocked, Check) when is_function(OnLocked, 3) ->
   case lock(Id) of
     true ->
-      OnLocked(Server, Id);
+      OnLocked(Server, Id, Check);
 
     false ->
-      lock_then_work(Server, Id, OnLocked)
+      lock_then_work(Server, Id, OnLocked, Check)
   end.
 
 lock(Id) ->

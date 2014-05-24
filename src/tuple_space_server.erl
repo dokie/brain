@@ -14,6 +14,7 @@
 %% API
 -export([start_link/0]).
 -export([stop/0, out/1, out/2, in/1, inp/1, rd/1, rdp/1, eval/1, count/1]).
+-export([in/2, inp/2, rd/2, rdp/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -91,6 +92,12 @@ out(Tuple, Ttl) when is_tuple(Tuple), is_integer(Ttl), Ttl > 0 ->
 in(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {in, Template}, infinity).
 
+
+-spec(in(Template :: tuple(), no_check) -> {term(), tuple()} | {noreply, term(), timeout()}).
+in(Template, no_check) when is_tuple(Template) ->
+  gen_server:call(?SERVER, {in, Template, no_check}, infinity).
+
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Gets a Tuple from the Tuplespace that matches a Template
@@ -102,6 +109,11 @@ in(Template) when is_tuple(Template) ->
 
 inp(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {inp, Template}).
+
+-spec(inp(Template :: tuple(), no_check) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+inp(Template, no_check) when is_tuple(Template) ->
+  gen_server:call(?SERVER, {inp, Template, no_check}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -115,6 +127,11 @@ inp(Template) when is_tuple(Template) ->
 rd(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {rd, Template}, infinity).
 
+-spec(rd(Template :: tuple(), no_check) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+rd(Template, no_check) when is_tuple(Template) ->
+  gen_server:call(?SERVER, {rd, Template, no_check}).
+
 %%--------------------------------------------------------------------
 %% @doc
 %% Reads a Tuple from the Tuplespace that matches a Template
@@ -126,6 +143,11 @@ rd(Template) when is_tuple(Template) ->
 
 rdp(Template) when is_tuple(Template) ->
   gen_server:call(?SERVER, {rdp, Template}).
+
+-spec(rdp(Template :: tuple(), no_check) -> {term(), tuple()} | {noreply, term(), timeout()}).
+
+rdp(Template, no_check) when is_tuple(Template) ->
+  gen_server:call(?SERVER, {rdp, Template, no_check}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -191,25 +213,49 @@ init([]) ->
 
 handle_call({in, Template}, From, State) ->
   process_flag(trap_exit, true),
-  Pid = spawn_link(tuple_space, in, [Template, self()]),
+  Pid = spawn_link(tuple_space, in, [Template, self(), check]),
+  ets:insert(tuple_requests, {Pid, From}),
+  {noreply, State};
+
+handle_call({in, Template, no_check}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, in, [Template, self(), no_check]),
   ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
 handle_call({inp, Template}, From, State) ->
   process_flag(trap_exit, true),
-  Pid = spawn_link(tuple_space, inp, [Template, self()]),
+  Pid = spawn_link(tuple_space, inp, [Template, self(), check]),
+  ets:insert(tuple_requests, {Pid, From}),
+  {noreply, State};
+
+handle_call({inp, Template, no_check}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, inp, [Template, self(), no_check]),
   ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
 handle_call({rd, Template}, From, State) ->
   process_flag(trap_exit, true),
-  Pid = spawn_link(tuple_space, rd, [Template, self()]),
+  Pid = spawn_link(tuple_space, rd, [Template, self(), check]),
+  ets:insert(tuple_requests, {Pid, From}),
+  {noreply, State};
+
+handle_call({rd, Template, no_check}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, rd, [Template, self(), no_check]),
   ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
 handle_call({rdp, Template}, From, State) ->
   process_flag(trap_exit, true),
-  Pid = spawn_link(tuple_space, rdp, [Template, self()]),
+  Pid = spawn_link(tuple_space, rdp, [Template, self(), check]),
+  ets:insert(tuple_requests, {Pid, From}),
+  {noreply, State};
+
+handle_call({rdp, Template, no_check}, From, State) ->
+  process_flag(trap_exit, true),
+  Pid = spawn_link(tuple_space, rdp, [Template, self(), no_check]),
   ets:insert(tuple_requests, {Pid, From}),
   {noreply, State};
 
